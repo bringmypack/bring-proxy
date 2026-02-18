@@ -1,17 +1,16 @@
 export default async function handler(req, res) {
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/TUO_SCRIPT_ID/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJcz9C1Fl4DZhxLlWtOdc-Dg0AXnToSpLqeL1Xh2NfoPTWayeXQNUXKQdQgK8J4nnN-A/exec";
 
   try {
-
     const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json"
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(req.body)
     });
@@ -21,11 +20,9 @@ export default async function handler(req, res) {
     return res.status(200).send(text);
 
   } catch (error) {
-
     return res.status(500).json({
-      error: "Proxy error",
+      error: 'Proxy error',
       details: error.message
     });
-
   }
 }
