@@ -13,16 +13,36 @@ export default async function handler(req, res) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(req.body),
+      redirect: 'follow'
     });
 
-    const data = await response.json();
+    const text = await response.text();
 
-    return res.status(200).json(data);
+    console.log("STATUS:", response.status);
+    console.log("RAW:", text);
+
+    if (!response.ok) {
+      return res.status(500).json({
+        error: "Apps Script error",
+        status: response.status,
+        raw: text
+      });
+    }
+
+    try {
+      const data = JSON.parse(text);
+      return res.status(200).json(data);
+    } catch (err) {
+      return res.status(500).json({
+        error: "Invalid JSON from Apps Script",
+        raw: text
+      });
+    }
 
   } catch (error) {
     return res.status(500).json({
-      error: 'Proxy error',
+      error: 'Proxy fetch failed',
       details: error.message
     });
   }
