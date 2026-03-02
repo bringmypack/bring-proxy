@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJcz9C1Fl4DZhxLlWtOdc-Dg0AXnToSpLqeL1Xh2NfoPTWayeXQNUXKQdQgK8J4nnN-A/exec";
 
   try {
+
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
       headers: {
@@ -15,9 +16,9 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body)
     });
 
-    const text = await response.text();
+    const data = await response.json();
 
-    return res.status(200).send(text);
+    return res.status(200).json(data);
 
   } catch (error) {
     return res.status(500).json({
