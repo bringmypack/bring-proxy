@@ -1,0 +1,141 @@
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+import { createHash, randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import handler, { dispatch, SPREADSHEET_ID } from '../api/mcp.js';
+
+const script = await readFile(new URL('../apps-script/GpPublication.gs', import.meta.url),'utf8');
+const baseHeaders = ['gp_id','role','nom','whatsapp','ville_depart','lat_depart','lng_depart',
+  'ville_arrivee','lat_arrivee','lng_arrivee','date_depart','date_expiration','prix_kg',
+  'statut','date_creation','source','fiabilite_score','rating_total','rating_count','signalements',
+  'badge','date_match','feedback_pending'];
+const input = {request_id:'test_publication_0001',nom:'Test Voyageur',telephone:'+33612345678',
+  ville_depart:'Paris',ville_arrivee:'Dakar',date_depart:'2026-10-31',capacite_kg:13,
+  objets_acceptes:'Vêtements, documents et effets personnels',tarif_texte:'À convenir'};
+
+function fixture(headers = baseHeaders) {
+  const state = {rows:[Array.from(headers)],locked:false,writes:0,maxColumns:headers.length};
+  const literal = v => typeof v === 'string' && v.startsWith("'") ? v.slice(1) : v;
+  const range = (r,c,h=1,w=1) => ({
+    getValues:()=>Array.from({length:h},(_,i)=>Array.from({length:w},(_,j)=>state.rows[r+i-1]?.[c+j-1] ?? '')),
+    setValue:v=>{state.rows[r-1]??=[];state.rows[r-1][c-1]=literal(v);state.writes++;},
+    getA1Notation:()=>`A${r}:Z${r}`
+  });
+  const sheet = {getName:()=> 'GP_TRANSPORTEURS',getLastColumn:()=>state.rows[0].length,
+    getLastRow:()=>state.rows.length,getMaxColumns:()=>state.maxColumns,
+    insertColumnsAfter:(_,count)=>{state.maxColumns+=count;},
+    getRange:range,getDataRange:()=>range(1,1,state.rows.length,state.rows[0].length),
+    appendRow:row=>{state.rows.push(row.map(literal));state.writes++;}};
+  const book = {getId:()=>SPREADSHEET_ID,getSheetByName:n=>n==='GP_TRANSPORTEURS'?sheet:null};
+  const context = vm.createContext({
+    Date:class extends Date {constructor(...args){super(...(args.length?args:['2026-10-20T08:00:00Z']));}},
+    SpreadsheetApp:{openById:id=>{assert.equal(id,SPREADSHEET_ID);return book;},flush:()=>{}},
+    Utilities:{formatDate:()=> '2026-10-20',getUuid:randomUUID,DigestAlgorithm:{SHA_256:'sha256'},
+      computeDigest:(_,text)=>Array.from(createHash('sha256').update(text).digest())},
+    LockService:{getScriptLock:()=>({tryLock:()=>{if(state.locked)return false;state.locked=true;return true;},
+      releaseLock:()=>{state.locked=false;}})},
+    getCoordinates:()=>({lat:null,lng:null})
+  });
+  vm.runInContext(script,context);
+  return {state,context};
+}
+
+test('maps complete traveller fields to headers and preserves existing records',()=>{
+  const {state,context}=fixture();
+  state.rows.push(baseHeaders.map((_,i)=>i===0?'existing-gp':i===2?'Existing person':''));
+  const before=JSON.stringify(state.rows[1]);
+  const result=context.publishGP({...input});
+  assert.equal(result.success,true); assert.equal(result.row,3);
+  assert.equal(JSON.stringify(state.rows[1]),before);
+  const value=key=>state.rows[2][state.rows[0].indexOf(key)];
+  assert.equal(value('capacite_kg'),13);assert.equal(value('objets_acceptes'),input.objets_acceptes);
+  assert.equal(value('tarif_texte'),'À convenir');assert.equal(value('prix_kg'),'');
+  assert.equal(value('whatsapp'),input.telephone);assert.equal(value('statut'),'ACTIF');
+  assert.equal(value('date_match'),'');assert.equal(result.spreadsheet_id,SPREADSHEET_ID);
+  assert.equal(state.locked,false);
+});
+
+test('retries produce one row and changed payload cannot reuse its request ID',()=>{
+  const {state,context}=fixture();const a=context.publishGP({...input});
+  const b=context.publishGP({...input});assert.equal(a.id,b.id);assert.equal(b.duplicate,true);
+  assert.equal(state.rows.length,2);
+  const conflict=context.publishGP({...input,capacite_kg:20});
+  assert.equal(conflict.error,'REQUEST_ID_CONFLICT');assert.equal(state.rows.length,2);
+  const found=context.getPublicationStatus({request_id:input.request_id});assert.equal(found.id,a.id);
+  assert.equal(context.getPublicationStatus({request_id:'not_saved_request_0001'}).found,false);
+});
+
+test('dry run creates no columns, rows or geocoding calls',()=>{
+  const {state,context}=fixture();context.getCoordinates=()=>{throw new Error('must not geocode');};
+  const result=context.publishGP({...input,dry_run:true});
+  assert.equal(result.dry_run,true);assert.equal(state.writes,0);assert.equal(state.rows.length,1);
+  assert.deepEqual(state.rows[0],baseHeaders);
+});
+
+test('date, phone, weight, currency and schema errors cannot write',()=>{
+  for(const patch of [{date_depart:'2026-02-30'},{date_depart:'2026-10-19'},
+    {telephone:'bad'},{capacite_kg:0},{capacite_kg:'13'},{prix_kg:10}, {nom:''}]) {
+    const {state,context}=fixture();assert.equal(context.publishGP({...input,...patch}).success,false);
+    assert.equal(state.writes,0);
+  }
+  const {state,context}=fixture(baseHeaders.filter(h=>h!=='gp_id'));
+  assert.equal(context.publishGP({...input}).error,'PUBLICATION_HEADERS_INVALID');assert.equal(state.writes,0);
+});
+
+test('reordered headers still receive correct values and formula input remains literal',()=>{
+  const {state,context}=fixture([...baseHeaders].reverse());
+  const result=context.publishGP({...input,nom:'=IMPORTXML("bad")',prix_kg:10,devise:'EUR'});
+  assert.equal(result.success,true);
+  assert.equal(state.rows[1][state.rows[0].indexOf('prix_kg')],10);
+  assert.equal(state.rows[1][state.rows[0].indexOf('nom')],'=IMPORTXML("bad")');
+  assert.equal(context.gpPublicationText('=IMPORTXML("bad")'),"'=IMPORTXML(\"bad\")");
+});
+
+test('MCP refuses inactive upstream before posting; timeouts remain uncertain',async()=>{
+  const message={jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'publish_departure',arguments:input}};
+  let calls=0;
+  const inactive=await dispatch(message,async()=>{calls++;return {error:'Action inconnue'};});
+  assert.equal(calls,1);assert.equal(inactive.result.isError,true);
+  assert.equal(inactive.result.structuredContent.error,'PUBLICATION_NOT_READY');
+  const timeout=await dispatch(message,async()=>{throw new Error('timeout');});
+  assert.equal(timeout.result.structuredContent.outcome,'unknown');
+  assert.equal(timeout.result.structuredContent.request_id,input.request_id);
+});
+
+test('MCP saves through the real script function and omits private details from receipt',async()=>{
+  const {state,context}=fixture();
+  const upstream=async data=>context[data.action](data);
+  const message={jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'publish_departure',arguments:input}};
+  const result=await dispatch(message,upstream);
+  assert.equal(result.result.structuredContent.saved,true);assert.equal(state.rows.length,2);
+  const text=JSON.stringify(result);assert.equal(text.includes(input.telephone),false);
+  assert.equal(text.includes(SPREADSHEET_ID),false);assert.equal(text.includes('GP_TRANSPORTEURS'),false);
+  const retry=await dispatch(message,upstream);assert.equal(retry.result.structuredContent.duplicate,true);
+  assert.equal(state.rows.length,2);
+  const status=await dispatch({...message,params:{name:'publication_status',arguments:{request_id:input.request_id}}},upstream);
+  assert.equal(status.result.structuredContent.saved,true);
+});
+
+test('MCP rejects a wrong destination, dry runs are not saved, and arbitrary actions cannot pass',async()=>{
+  const message={jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'publish_departure',arguments:input}};
+  const bad=await dispatch(message,async()=>({success:true,write_requests:true,spreadsheet_id:'other'}));
+  assert.equal(bad.result.isError,true);
+  const {state,context}=fixture();const result=await dispatch({...message,params:{...message.params,arguments:{...input,dry_run:true}}},async d=>context[d.action](d));
+  assert.equal(result.result.structuredContent.saved,false);assert.equal(result.result.structuredContent.valid,true);
+  assert.equal(state.writes,0);
+  const extra=await dispatch({...message,params:{...message.params,arguments:{...input,action:'addColis'}}});
+  assert.equal(extra.result.structuredContent.error,'INVALID_ARGUMENTS');
+});
+
+test('HTTP discovery, initialization, notification, malformed input and origin validation',async()=>{
+  const invoke=async(req)=>{const result={headers:{},status:200};const res={setHeader:(k,v)=>result.headers[k]=v,
+    status:c=>{result.status=c;return res;},json:b=>{result.body=b;return res;},end:()=>res};
+    await handler({headers:{},method:'POST',...req},res);return result;};
+  assert.equal((await invoke({body:{jsonrpc:'2.0',id:1,method:'initialize'}})).body.result.protocolVersion,'2025-03-26');
+  assert.equal((await invoke({body:{jsonrpc:'2.0',id:2,method:'tools/list'}})).body.result.tools.length,2);
+  assert.equal((await invoke({body:{jsonrpc:'2.0',method:'notifications/initialized'}})).status,202);
+  assert.equal((await invoke({body:'broken'})).status,400);
+  assert.equal((await invoke({headers:{origin:'https://untrusted.invalid'},body:{}})).status,403);
+  assert.equal((await invoke({method:'GET'})).status,405);
+});
