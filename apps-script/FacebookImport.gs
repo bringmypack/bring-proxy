@@ -447,12 +447,13 @@ function importVerifiedFacebookBatch() {
     runs.appendRow([new Date(),'Verifica umana originali Facebook + import proprietario',receipts.length,plan.duplicates.length,plan.review.length,JSON.stringify(receipts),JSON.stringify(geoCache)]);
     var guide=book.getSheetByName('GESTIONE');
     if(guide && guide.getRange('A1').getValue()==='BringMyPack | Gestione') {
+      var cloudEnabled=PropertiesService.getScriptProperties().getProperty('BMP_FACEBOOK_CLOUD_ENABLED')==='true';
       var help=[
         ['Fonti Facebook','FB_SOURCES','6 gruppi, il tuo per primo. Gruppo privato escluso dal catalogo pubblico.'],
         ['Annunci incerti','FB_REVIEW','Date contraddittorie o anno mancante: verificare prima di importare. Quartieri conservati.'],
         ['Import e controlli','FB_RUNS','Ricevute delle righe salvate, duplicati e risultati geocodifica.'],
         ['Quartieri e GPS','GP_TRANSPORTEURS: lat/lng + nuove colonne da AE','Le città restano intatte. GPS di quartiere/comune = approssimativo; nessuna posizione precisa inventata.'],
-        ['Raccolta cloud','Ricerca pubblica giornaliera attiva','Report indicizzati. Lettura completa Facebook e import automatico nel foglio NON attivi. Chrome serve alla verifica manuale.'],
+        ['Raccolta cloud',cloudEnabled?'Apify 09:00 Europe/Paris → Google ogni ora':'Worker Google in pausa / da configurare',cloudEnabled?'Cloud attivo, PC spenti. 5 post × 5 gruppi pubblici; import progressivo. Casi incerti in FB_REVIEW.':'Verificare task, pianificazione e proprietà dello script originale prima di attivare.'],
         ['Date flessibili','Chat-GP','Più giorni accettati aumentano le possibilità di trovare un GP vicino, senza garantire disponibilità.']
       ];
       guide.getRange(16,1,help.length,3).setValues(help).setWrap(true).setVerticalAlignment('top');

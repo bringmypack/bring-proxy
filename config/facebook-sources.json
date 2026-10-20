@@ -2,10 +2,10 @@
   "version": 1,
   "updated_at": "2026-10-20",
   "priority_rule": "User's group is always searched first. Other groups follow the supplied order.",
-  "collection_mode": "cloud_public_web_search_and_owner_browser_review",
+  "collection_mode": "apify_public_groups_daily_and_google_owner_worker",
   "full_feed_access": false,
-  "sheet_import_enabled": false,
-  "sheet_import_blocker": "Cloud connector writes still return 403. Owner Apps Script supports verified manual batches; Chrome login does not authorize cloud full-feed collection.",
+  "sheet_import_enabled": true,
+  "sheet_import_blocker": null,
   "sources": [
     {
       "priority": 1,
@@ -69,10 +69,9 @@
     }
   ],
   "automation": {
-    "enabled": true,
-    "cadence": "daily morning, around 09:00 Europe/Paris",
-    "output": "report of public indexed posts; no Google Sheet writes",
-    "immediate_run": "requested 2026-10-20; asynchronous completion not yet verified"
+    "enabled": false,
+    "replaced_by": "Apify daily collection and hourly Google Apps Script import",
+    "paused_at": "2026-10-20"
   },
   "browser_access_verified_at": "2026-10-20",
   "manual_owner_import_enabled": true,
@@ -84,9 +83,9 @@
     "posts_per_group": 5,
     "public_group_count": 5,
     "timeout_seconds": 180,
-    "schedule_enabled": false,
-    "cloud_import_enabled": false,
-    "blocker": "Apify task run read returns 200, dataset read returns 403 insufficient-permissions. Owner Google consent and real OCR/cache verified. Worker paused until default run dataset read permission is corrected in the existing Apify account.",
+    "schedule_enabled": true,
+    "cloud_import_enabled": true,
+    "blocker": null,
     "trial_results": [
       {
         "groups": 1,
@@ -109,6 +108,39 @@
     "google_owner_authorized": true,
     "google_ocr_verified": true,
     "google_ocr_cache_verified": true,
-    "google_trigger_installed": true
+    "google_trigger_installed": true,
+    "dataset_read_verified": true,
+    "read_token_scope": "Single BringMyPack task Read/List runs; default run storages enabled; no Run/Write/account-wide permissions",
+    "task_id": "fFNcqXiDObbQxFkd5",
+    "schedule_id": "DnRh5NZt669Yc1h4P",
+    "queue_post_ids": "Text-prefixed; legacy numeric IDs recovered from exact JSON/source URL",
+    "worker_cadence": "hourly, up to 3 posts and 8 OCR per run; import progresses after daily collection",
+    "live_verification": {
+      "date": "2026-10-20",
+      "task_http": 200,
+      "dataset_http": 200,
+      "posts": 25,
+      "unique_queue_posts": 25,
+      "queue_review": 25,
+      "queue_pending": 0,
+      "new_catalogue_rows": 0,
+      "review_reasons": {
+        "ADDRESS_REVIEW_REQUIRED": 9,
+        "DATE_ROUTE_AMBIGUOUS": 6,
+        "ROUTE_REQUIRED": 10
+      },
+      "existing_verified_records_replayed": 3,
+      "duplicates_detected": 3,
+      "extra_rows_on_replay": 0,
+      "hourly_triggers": 1,
+      "tests_passed": 52,
+      "final_replay": {
+        "added": 0,
+        "duplicates": 0,
+        "review": 0,
+        "queued": 0,
+        "ocr": 0
+      }
+    }
   }
 }
