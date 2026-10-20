@@ -1,77 +1,59 @@
 # Raccolta Facebook BringMyPack
 
-Stato al 20 ottobre 2026: ricerca pubblica cloud attiva; verifica tramite Chrome del proprietario riuscita. Importati tre annunci pubblici originali nel catalogo principale, righe 22–24. La verifica riguarda i post recenti visibili, non l'intera cronologia dei gruppi.
+Stato verificato il 20 ottobre 2026: raccolta Apify attiva ogni giorno alle 09:00 Europe/Paris e importatore Google proprietario attivo ogni ora. Funziona con i PC spenti. Il vecchio report ChatGPT è sospeso. Non sono necessarie chiamate a modelli AI per raccogliere, leggere le locandine o importare.
 
 ## Dove intervenire
 
 | Cosa | Fonte unica |
 | --- | --- |
+| Guida operativa e collegamenti | Scheda GESTIONE del catalogo principale |
 | Gruppi, ordine e visibilità | [facebook-sources.json](../config/facebook-sources.json), scheda FB_SOURCES |
-| Annunci con data/anno incerti | FB_REVIEW |
-| Importazioni e ricevute | FB_RUNS |
+| Orario della raccolta | [Pianificazione Apify](https://console.apify.com/schedules/DnRh5NZt669Yc1h4P#/settings) |
+| Numero di post e limite di credito | [Task Apify](https://console.apify.com/actors/tasks/fFNcqXiDObbQxFkd5/input) |
+| Worker, OCR, salvataggio e pausa | [FacebookCloud.gs](../apps-script/FacebookCloud.gs), progetto Apps Script originale |
+| Diagnosi, audit e trattamento manuale della coda | [FacebookCloudAuth.gs](../apps-script/FacebookCloudAuth.gs) |
+| Parser deterministico | [facebook-extract.js](../lib/facebook-extract.js), incorporato nel worker |
+| Annunci incerti e motivi | FB_REVIEW |
+| Coda / testi delle immagini | FB_QUEUE / FB_OCR_CACHE |
+| Esecuzioni e contatori | FB_RUNS |
 | Annunci ricercabili, quartieri e GPS | GP_TRANSPORTEURS |
-| Procedura proprietario | [FacebookImport.gs](../apps-script/FacebookImport.gs) nello script originale |
 | Comportamento della chat | [Istruzioni Chat-GP](../plugin/skills/instructions/SKILL.md), versione 0.73.0 |
 
-Il gruppo gpfrancesenegal ha sempre priorità. Seguono i cinque gruppi nell'ordine dell'utente. Il sesto, 226193057954981, è privato: i suoi contenuti non entrano nel catalogo pubblico.
+Progetto originale: [Apps Script](https://script.google.com/u/6/home/projects/1Wvw2p1Y0PMSEQ2sY5x2dRYzWJ7vSmho6Q1qBR9z28_nRQvxEfv-gxzlE/edit). Catalogo unico: [Google Sheets](https://docs.google.com/spreadsheets/d/1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE/edit). Codice: questo repository. Il worker è proprietario: non cambia l'URL del deployment HTTP esistente e non espone un importatore anonimo.
 
-## Risultati verificati
+## Raccolta e costi
 
-- Alioune Sylla, Paris–Dakar, 21 ottobre 2026.
-- Mme Diaw — GP la Confiance, Paris–Dakar, 21 ottobre 2026, 10 EUR/kg. Località: Vitry-sur-Seine e Parcelles Assainies unité 25.
-- Niany GP Travel International, Lyon–Dakar, 23 ottobre 2026; ultimo deposito 22 ottobre.
+Il gruppo gpfrancesenegal ha sempre priorità. Seguono gli altri gruppi nell'ordine dell'utente. Sono raccolti fino a cinque post recenti per ciascuno dei cinque gruppi pubblici. Il sesto gruppo, 226193057954981, è privato ed escluso. La raccolta non è una lettura integrale della cronologia e può non rilevare annunci pubblicati tra due campioni.
 
-Le fonti e l'evidenza delle date sono in [facebook-verified-2026-10-20.json](../data/facebook-verified-2026-10-20.json). Quattro offerte restano in revisione per anno assente o data contraddittoria. Il post Symantec contiene due tratte: la procedura assegna un ID a ciascun viaggio, senza duplicarli ai tentativi successivi.
+Una sola task fFNcqXiDObbQxFkd5, una sola pianificazione DnRh5NZt669Yc1h4P: cron 0 9 * * *, Europe/Paris, prossima partenza verificata 21 ottobre 2026 alle 09:00. Timeout 180 secondi, tetto 0,15 USD di credito per esecuzione, nessuna sovrapposizione. Account Free, nessun abbonamento a pagamento attivato. Credito 5 USD al mese; ciclo verificato 20 ottobre–19 novembre UTC, prossimo rinnovo 20 novembre. Credito inutilizzato non cumulabile. Due prove precedenti: 0,051 USD per 10 post; 0,126 USD per 25 post. Non aumentare frequenza o volume senza riesaminare il budget.
 
-Le righe importate restano A_VERIFIER: è stato verificato il contenuto della fonte, non identità, capacità residua o disponibilità del GP. Nessun telefono copiato nel repository o restituito dalla ricerca.
+Google legge l'ultima esecuzione riuscita della task con una chiave limitata a Read / List runs per questa sola task e accesso ai suoi default run storages. Nessun permesso Run, Write o accesso completo all'account. BMP_APIFY_READ_TOKEN resta esclusivamente nelle proprietà private Apps Script; mai in foglio, repository, URL o log. La task è selezionata da BMP_APIFY_TASK_ID.
+
+## Importatore e controlli
+
+Consenso del proprietario Google completato: Sheets, richieste esterne, gestione del proprio trigger e drive.file per i documenti OCR creati dal worker. Drive v3 è abilitato. BMP_FACEBOOK_OCR_AUTHORIZED e BMP_FACEBOOK_CLOUD_ENABLED sono true. Un solo trigger orario syncFacebookCloud è installato. installFacebookCloudTrigger lo riutilizza; pauseFacebookCloud sospende il worker senza cancellare dati.
+
+Ogni esecuzione tratta fino a tre post e otto immagini. La coda viene smaltita progressivamente dopo la raccolta delle 09:00; il catalogo completo non è pronto istantaneamente alle 09:00. OCR Google Drive in cache; documenti temporanei spostati nel cestino dopo la lettura. Numeri di telefono redatti nei testi conservati. Solo immagini pubbliche di Facebook sui domini CDN ammessi; nessun cookie del browser esportato.
+
+Le celle post_id e image_id hanno prefissi testuali per impedire l'arrotondamento dei lunghi numeri Facebook. Le righe legacy della coda recuperano gli ID esatti dal JSON del post o dal link originale. Dedupe per post + tratta + data; i viaggi distinti dello stesso post restano separati. La deduplica tra gruppi dipende anche dal nome operatore e non riconosce ogni possibile variante di un annuncio.
+
+Sotto lock condiviso, l'importatore mappa le colonne per intestazione e verifica ogni ricevuta di salvataggio. Il parser richiede direzione e data con anno espliciti e coerenti. Date contraddittorie, indirizzi non assegnabili e tratte non riconosciute restano in FB_REVIEW. Non inventa capacità, disponibilità o anno. Un salvataggio non verifica l'identità del GP. Le offerte importate restano A_VERIFIER.
+
+## Verifica reale del 20 ottobre
+
+- Corretto il blocco Apify: prima task HTTP 200 e dataset HTTP 403; ora entrambi HTTP 200.
+- 25 pubblicazioni lette e trattate, 25 ID unici esatti, nessun PENDING, un solo trigger orario.
+- Tutte e 25 in FB_REVIEW: 9 ADDRESS_REVIEW_REQUIRED, 6 DATE_ROUTE_AMBIGUOUS, 10 ROUTE_REQUIRED. Nessuna nuova riga GP prodotta da questo campione. La connessione risolta non significa che ogni locandina sia automaticamente interpretabile.
+- Test reale del salvataggio sui tre annunci già verificati: added=0, duplicates=3, nessuna nuova riga.
+- Ripetizione reale di syncFacebookCloud a coda vuota: added=0, queued=0, review=0, ocr=0.
+- Audit del replay: nessun post della raccolta manca nella coda; ID testuali verificati.
+- Prova OCR reale precedente: 197 caratteri redatti, seconda lettura cached=true. Nessuna promessa di accuratezza per tutte le immagini.
+- 52 test superati, inclusi collisioni da arrotondamento Sheets e riuso cache OCR senza rete.
+
+Tre annunci già verificati restano ricercabili: Alioune Sylla Paris–Dakar 21 ottobre; Mme Diaw — GP la Confiance Paris–Dakar 21 ottobre, 10 EUR/kg; Niany GP Travel International Lyon–Dakar 23 ottobre (anno 2026). Fonti e prove in [facebook-verified-2026-10-20.json](../data/facebook-verified-2026-10-20.json). Quattro offerte del batch manuale restano anch'esse in revisione.
 
 ## Quartieri e GPS
 
-Le città restano in ville_depart / ville_arrivee. Il testo della località e il quartiere hanno colonne dedicate da AE. Le coordinate restano nelle colonne esistenti lat_depart/lng_depart e lat_arrivee/lng_arrivee, mappate per intestazione.
+Le città restano in ville_depart / ville_arrivee. Quartieri e luoghi sono nelle colonne dedicate da AE; latitudine/longitudine nelle colonne esistenti, mappate per intestazione. precision_gps_depart / precision_gps_arrivee e geocodage_depart / geocodage_arrivee dichiarano il luogo effettivamente riconosciuto e la precisione. Il centro di un quartiere non è il punto di consegna. Unité 25 non localizzata univocamente conserva il testo e l'eventuale area più ampia dichiarata.
 
-precision_gps_depart / precision_gps_arrivee distinguono città, comune, quartiere approssimativo e indirizzo. geocodage_depart / geocodage_arrivee conservano il luogo effettivamente riconosciuto. Un centro di quartiere non è il punto preciso di consegna. Per unité 25, se la mappa non identifica il luogo in modo univoco, l'eventuale centro di Parcelles Assainies è dichiarato come area più ampia. I dati ambigui restano da verificare.
-
-La ricerca riconosce anche i nomi delle località pubbliche e restituisce la precisione disponibile. Non calcola ancora distanze né un ordinamento dal GP più vicino. Chat-GP propone le date flessibili senza allargare una data ferma senza accordo.
-
-## Cosa gira nel cloud
-
-L'attività esistente “BringMyPack — ricerca nei 6 gruppi” produce una ricerca/report dei post pubblici indicizzati, ogni mattina intorno alle 09:00 Europe/Paris, anche con i PC spenti. Non legge integralmente i feed e non importa automaticamente nel foglio.
-
-Il connettore Google continua ad avere scritture rifiutate con 403. L'accesso proprietario in Chrome permette l'importazione manuale verificata tramite Apps Script; non trasferisce l'autenticazione al collector cloud.
-
-Per completare la raccolta automatica servono un lettore cloud autorizzato, copertura delle fonti verificata e una connessione cloud di scrittura funzionante. Non esportare cookie del browser, non esporre un importatore anonimo e non promettere copertura completa.
-
-## Procedura operativa
-
-1. Aprire il post originale pubblico; verificare direzione, data, anno e luoghi.
-2. Aggiornare il batch verificato nello stesso FacebookImport.gs, conservandolo in GitHub.
-3. Eseguire importVerifiedFacebookBatch dall'editor proprietario. Lock, intestazioni, deduplica e ricevute sono controllati.
-4. Per completare solo località mancanti dello stesso batch, eseguire completeVerifiedFacebookLocations.
-5. Controllare FB_RUNS e la ricerca dal connettore. Il planner puro non sostituisce il lock.
-6. Se cambia la proiezione pubblica Google, aggiornare lo stesso deployment SuperSayan3, conservando l'URL.
-
-## Préparation Apify Free (20 octobre 2026)
-
-Compte Free vérifié dans Console, limite mensuelle 5 USD de crédit. Deux essais terminés: 10 posts du groupe prioritaire (0,051 USD de crédit), puis 25 posts des cinq groupes publics (0,126 USD). Aucun abonnement payant activé.
-
-Une tâche unique est enregistrée: cinq posts par groupe, ordre utilisateur, timeout 180 secondes et plafond 0,15 USD par exécution. La collecte est un échantillon récent, pas un historique exhaustif. Le groupe privé est exclu.
-
-FacebookCloud.gs prépare un worker propriétaire désactivé par défaut. Il lit Apify avec une clé limitée à la lecture, traite une file sous lock, lit les images via OCR Google Drive, valide les dates et conserve les cas ambigus en révision. Aucune API de modèle de langage. Les placeholders « May be an image of text » ne sont pas de vrais textes OCR.
-
-Accord explicite reçu le 20 octobre: clé Apify limitée à Read / List runs pour la seule tâche BringMyPack créée et conservée dans les propriétés privées Apps Script. Le manifeste active Drive v3 et demande seulement drive.file pour les documents OCR créés par le worker, en plus des scopes Sheets, external_request et script.scriptapp. Consentement Google propriétaire encore bloqué par une redirection multi-compte vers une page inexistante script.google.com/accounts. Aucune autorisation accordée au compte personnel par défaut. La clé ne doit jamais entrer dans GitHub, la feuille ou les logs. Conserver les scopes historiques; ajouter seulement les scopes nécessaires au worker et à son déclencheur. Activer Drive API dans le projet Google associé avant le test OCR.
-
-Après accord: configurer BMP_APIFY_READ_TOKEN et BMP_APIFY_TASK_ID dans Script Properties; tester OCR/import, puis définir BMP_FACEBOOK_OCR_AUTHORIZED=true et installer le déclencheur horaire via installFacebookCloudTrigger. Activer ensuite la planification Apify. L’ancien report ChatGPT doit être suspendu seulement après validation de ce parcours.
-
-Les nouvelles feuilles FB_QUEUE et FB_OCR_CACHE seront créées au premier traitement autorisé. Le worker ne démarre aucun run Apify et ne peut donc pas augmenter la fréquence ou activer un plan payant. Le blocage du crédit Free reste le plafond final.
-
-## Stato verificato (20 ottobre 2026, 15:27 Europe/Paris)
-
-Consenso del proprietario Google completo: authorizeFacebookCloud restituisce NOT_REQUIRED. Il trigger orario è installato. Il worker è stato messo in pausa dopo la diagnosi, per evitare tentativi ripetuti senza il permesso Apify mancante. La pianificazione Apify delle 09:00 resta disattivata.
-
-Prova OCR su una locandina pubblica reale riuscita: 197 caratteri redatti salvati in FB_OCR_CACHE. Seconda lettura con cached=true, senza un altro OCR. Il documento OCR temporaneo è spostato nel cestino dal worker. La prova non certifica l’accuratezza di tutte le locandine. Il codice temporaneo e l’URL dell’immagine di prova sono stati rimossi dal progetto.
-
-Diagnosi Apify: la chiave legge l’ultima esecuzione della sola task (HTTP 200), ma la lettura del dataset restituisce HTTP 403 insufficient-permissions. testFacebookCloudConnection controlla separatamente i due stadi senza registrare token o post. Serve correggere il permesso di lettura dei default run storages nell’account Apify esistente. Non creare un secondo account né ampliare il token a Full access, Run o Write. Verificare le autorizzazioni effettive dopo la modifica.
-
-Dopo la correzione: testFacebookCloudConnection deve restituire HTTP 200 per entrambi gli stadi. Riabilitare il worker con installFacebookCloudTrigger, eseguire syncFacebookCloud e verificare FB_QUEUE, FB_REVIEW, FB_RUNS e le ricevute nel catalogo. Ripetere il batch per controllare i doppioni; poi abilitare la pianificazione Apify delle 09:00 Europe/Paris e sospendere il vecchio report ChatGPT.
-
-Credito Free verificato: periodo 20 ottobre–19 novembre 2026 UTC; prossimo rinnovo 20 novembre. Il credito non usato scade e non si accumula. Nessun piano a pagamento attivato.
+La ricerca riconosce località pubbliche e restituisce la precisione disponibile. Non calcola ancora distanze né ordina dal GP più vicino. Date flessibili aumentano le possibilità senza garantire disponibilità. Pagamenti ancora di prova: nessuna promessa commerciale di fondi protetti finché il servizio non è attivato.

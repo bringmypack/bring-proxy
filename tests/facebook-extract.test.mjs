@@ -66,3 +66,21 @@ test('Cloud worker is disabled by default and never logs or sends a token to the
  const extractor=await readFile(new URL('../lib/facebook-extract.js',import.meta.url),'utf8');
  assert.ok(code.startsWith(extractor.replace(/export function /g,'function ')));
 });
+
+test('Rounded legacy queue IDs recover exactly; distinct 16-digit posts remain distinct',async()=>{
+ const code=await readFile(new URL('../apps-script/FacebookCloud.gs',import.meta.url),'utf8');
+ const c=vm.createContext({});vm.runInContext(code,c);
+ const ids=['3978597969113123','3978597969113124'];
+ const rounded=ids.map(id=>Number(Number(id).toPrecision(15)));assert.equal(rounded[0],rounded[1]);
+ const recovered=ids.map((id,i)=>c.fbCloudQueuePostId_([rounded[i],'https://www.facebook.com/groups/gpfrancesenegal/posts/'+id+'/','','',JSON.stringify({post_id:id})]));
+ assert.deepEqual(recovered,ids);assert.equal(new Set(recovered).size,2);
+ assert.equal(c.fbCloudQueuePostId_([0,'https://www.facebook.com/groups/gpfrancesenegal/posts/'+ids[0]+'/','','','broken']),ids[0]);
+ assert.throws(()=>c.fbCloudQueuePostId_([0,'invalid','','','broken']),/QUEUE_POST_ID_INVALID/);
+});
+test('Text-prefixed image IDs reuse OCR across separate reads without network calls',async()=>{
+ const code=await readFile(new URL('../apps-script/FacebookCloud.gs',import.meta.url),'utf8');
+ const c=vm.createContext({});vm.runInContext(code,c);
+ const id='29110771101867860',budget={remaining:8};
+ assert.equal(c.fbCloudOcr_({id},{rows:[['IMAGE_'+id,'OK','cached poster']]},budget),'cached poster');
+ assert.equal(budget.remaining,8);
+});

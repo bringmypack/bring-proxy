@@ -144,7 +144,7 @@ function fbCloudImage_(url){
   return blob;
 }
 function fbCloudOcr_(image,cache,budget){
-  var cached=cache.rows.find(function(row){return String(row[0])===image.id&&row[1]==='OK';});
+  var cached=cache.rows.find(function(row){return (String(row[0])==='IMAGE_'+image.id||String(row[0])===image.id)&&row[1]==='OK';});
   if(cached)return cached[2];
   if(budget.remaining<=0)throw Error('OCR_DEFERRED');budget.remaining--;
   var blob=fbCloudImage_(image.url);
@@ -162,8 +162,8 @@ function fbCloudOcr_(image,cache,budget){
     var result=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+id+'/export?mimeType=text%2Fplain',{headers:auth,muteHttpExceptions:true});
     if(result.getResponseCode()!==200)throw Error('OCR_EXPORT_FAILED');
     var text=redactFacebookContacts(result.getContentText()).slice(0,20000);
-    cache.sheet.appendRow([gpPublicationText(image.id),'OK',gpPublicationText(text),new Date()]);
-    cache.rows.push([image.id,'OK',text]);return text;
+    cache.sheet.appendRow(['IMAGE_'+image.id,'OK',gpPublicationText(text),new Date()]);
+    cache.rows.push(['IMAGE_'+image.id,'OK',text]);return text;
   }finally{
     // Reversible cleanup of this worker's temporary document only.
     UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+id,{method:'patch',contentType:'application/json',headers:auth,payload:JSON.stringify({trashed:true}),muteHttpExceptions:true});
@@ -188,6 +188,13 @@ function pauseFacebookCloud(){
   PropertiesService.getScriptProperties().setProperty('BMP_FACEBOOK_CLOUD_ENABLED','false');
   Logger.log('Cloud worker paused. Existing data unchanged.');
 }
+function fbCloudQueuePostId_(row){
+  // Recover exact IDs from JSON/source, including rows Sheets previously rounded.
+  try{var id=JSON.parse(String(row[4])).post_id;if(/^\d+$/.test(id))return String(id);}catch(error){}
+  var match=String(row[1]).match(/\/(?:posts|permalink)\/(\d+)\//);
+  if(match)return match[1];
+  throw Error('QUEUE_POST_ID_INVALID');
+}
 function syncFacebookCloud(){
   var props=PropertiesService.getScriptProperties();
   if(props.getProperty('BMP_FACEBOOK_CLOUD_ENABLED')!=='true')return {enabled:false};
@@ -202,7 +209,8 @@ function syncFacebookCloud(){
     var ocrSheet=fbImportTable_(book,'FB_OCR_CACHE',FB_CLOUD_OCR_HEADERS);
     var runResponse=fbCloudApi_('/actor-tasks/'+task+'/runs/last?status=SUCCEEDED',token),run=runResponse.data;
     if(!run||run.status!=='SUCCEEDED'||run.actId!==FB_CLOUD_ACTOR_ID||run.actorTaskId!==task||!/^[A-Za-z0-9]+$/.test(run.defaultDatasetId||''))throw Error('APIFY_RUN_INVALID');
-    var queueData=queue.getDataRange().getValues(),known=new Set(queueData.slice(1).map(function(r){return String(r[0]);}));
+    var queueData=queue.getDataRange().getValues(),exactIds=queueData.slice(1).map(fbCloudQueuePostId_),known=new Set(exactIds);
+    if(exactIds.some(function(id,i){return queueData[i+1][0]!=='POST_'+id;}))queue.getRange(2,1,exactIds.length,1).setNumberFormat('@').setValues(exactIds.map(function(id){return ['POST_'+id];}));
     if(props.getProperty('BMP_APIFY_LAST_ENQUEUED_RUN')!==run.id){
       var items=fbCloudApi_('/datasets/'+run.defaultDatasetId+'/items?format=json&clean=true&limit=50',token);
       if(!Array.isArray(items)||items.length>50)throw Error('APIFY_ITEMS_INVALID');
@@ -212,7 +220,7 @@ function syncFacebookCloud(){
       normalized.forEach(function(post){
         if(known.has(post.post_id))return;
         post.text=redactFacebookContacts(post.text);post.ocr_text=redactFacebookContacts(post.ocr_text);
-        queue.appendRow([post.post_id,post.source_url,'PENDING',0,gpPublicationText(JSON.stringify(post)),'',new Date()]);
+        queue.appendRow(['POST_'+post.post_id,post.source_url,'PENDING',0,gpPublicationText(JSON.stringify(post)),'',new Date()]);
         known.add(post.post_id);report.queued++;
       });
       props.setProperty('BMP_APIFY_LAST_ENQUEUED_RUN',run.id);
@@ -245,6 +253,7 @@ function syncFacebookCloud(){
     fbImportTable_(book,'FB_RUNS',['data_ora','modalita','inseriti','duplicati','da_verificare','ricevute','gps'])
       .appendRow([new Date(),'Apify cloud — codice, senza chiamate AI',report.added,report.duplicates,report.review,JSON.stringify({queued:report.queued,ocr:report.ocr}),'']);
     props.setProperty('BMP_FACEBOOK_LAST_SUCCESS',new Date().toISOString());
+    props.deleteProperty('BMP_FACEBOOK_LAST_ERROR');
     SpreadsheetApp.flush();Logger.log(JSON.stringify(report));return report;
   }catch(error){
     var code=/^[A-Z_0-9]+$/.test(String(error.message))?String(error.message):'CLOUD_ERROR';
