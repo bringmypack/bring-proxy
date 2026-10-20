@@ -19,7 +19,7 @@ export async function dispatch(message, fetchImpl = fetch, now = new Date()) {
   const result = value => ({jsonrpc:'2.0', id, result:value});
   const error = (code, text) => ({jsonrpc:'2.0', id, error:{code, message:text}});
   if (message.method === 'initialize') return result({protocolVersion:'2025-03-26', capabilities:{tools:{}},
-    serverInfo:{name:'bringmypack-annonces', version:'1.1.1'},
+    serverInfo:{name:'bringmypack-annonces', version:'1.2.0'},
     instructions:'Search public traveller announcements using search_departures. Availability and identity are not verified. A service error is not an empty catalogue. No booking or payment.'});
   if (message.method === 'ping') return result({});
   if (message.method === 'tools/list') return result({tools});
@@ -38,7 +38,8 @@ export async function dispatch(message, fetchImpl = fetch, now = new Date()) {
     const rows = await readCatalog(fetchImpl);
     if (tool.name === 'service_status') return result(reply({connected:true, catalog_records:rows.length,
       checked_at:now.toISOString(), features:{search:true, booking:false, write_requests:false, payments:false},
-      notice:'Lecture des annonces importées dans Google Sheets, sans accès aux dossiers privés.'}));
+      catalog:'BringMyPack — catalogue principal',
+      notice:'Recherche et publication utilisent le même catalogue. Contacts privés exclus des résultats.'}));
     return result(reply(searchCatalog(rows, args, now)));
   } catch (e) {
     const invalidDate = e.message === 'INVALID_DATE_RANGE';

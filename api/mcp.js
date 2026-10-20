@@ -1,8 +1,8 @@
 // Additional MCP endpoint. The existing catalogue and /api/proxy are unchanged.
 import { randomUUID } from 'node:crypto';
 import { CARD_URI, widgetHtml } from '../lib/travel-card.js';
-export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby-j5tKAEK5gBW9-64-lfvNDXdyIBu6davlmz3LAcDPp9JS8LqiFBstMPu6cJSEDfOS/exec';
-export const SPREADSHEET_ID = '1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE';
+import { SCRIPT_URL, SPREADSHEET_ID } from '../lib/config.js';
+export { SCRIPT_URL, SPREADSHEET_ID };
 const origins = new Set(['https://chatgpt.com', 'https://chat.openai.com']);
 const fields = {
   request_id: {type:'string',pattern:'^[a-zA-Z0-9_-]{16,100}$',description:'Generate a UUID for this publication. Reuse it unchanged after any timeout or retry.'},
@@ -76,7 +76,7 @@ export async function dispatch(message, upstream = callScript) {
   const result = value => ({jsonrpc:'2.0',id,result:value});
   const error = (code, text) => ({jsonrpc:'2.0',id,error:{code,message:text}});
   if (message.method === 'initialize') return result({protocolVersion:'2025-03-26',
-    capabilities:{tools:{},resources:{}},serverInfo:{name:'bringmypack-publication',version:'1.1.0'},
+    capabilities:{tools:{},resources:{}},serverInfo:{name:'bringmypack-publication',version:'1.2.0'},
     instructions:'This endpoint publishes GP traveller announcements only. Keep the existing BringMyPack catalogue tools for searches. Voice input uses the host microphone when available. Payments are not active.'});
   if (message.method === 'ping') return result({});
   if (message.method === 'tools/list') return result({tools});
