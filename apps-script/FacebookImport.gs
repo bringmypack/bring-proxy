@@ -6,11 +6,12 @@ function planFacebookImport(records, existingIds, headers, sources, today) {
   const priority=new Map(sources.filter(s=>s.enabled&&s.visibility!=='private'&&s.public_import!==false).map(s=>[s.id,s.priority]));
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   const trip=r=>[r.operator,r.origin,r.destination,r.departure_date,r.departure_time||''].map(norm).join('|');
+  const postTrip=r=>[r.origin,r.destination,r.departure_date,r.departure_time||''].map(norm).join('|');
   const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return (h>>>0).toString(16).padStart(8,'0');};
   const seen=new Set(), seenPostIds=new Set(), seenPostTrips=new Set(), seenTrips=new Set(), rows=[], review=[], duplicates=[];
   existingIds.forEach(r=>{
     if(typeof r==='string') {seen.add(r);const m=r.match(/^FB_[^_]+_(\d+)$/);if(m)seenPostIds.add(m[1]);}
-    else {seen.add(r.id);seenTrips.add(trip(r));const m=String(r.source_url||'').match(/\/(?:posts|permalink)\/(\d+)\/$/);if(m)seenPostTrips.add(m[1]+'|'+trip(r));}
+    else {seen.add(r.id);seenTrips.add(trip(r));const m=String(r.source_url||'').match(/\/(?:posts|permalink)\/(\d+)\/$/);if(m)seenPostTrips.add(m[1]+'|'+postTrip(r));}
   });
   for(const r of [...records].sort((a,b)=>(priority.get(a.group_id)??999)-(priority.get(b.group_id)??999))) {
     const m=String(r.source_url||'').match(/^https:\/\/www\.facebook\.com\/groups\/([^/]+)\/(?:posts|permalink)\/(\d+)\/$/);
@@ -25,9 +26,9 @@ function planFacebookImport(records, existingIds, headers, sources, today) {
     else if(![['FR','SN'],['SN','FR']].some(pair=>pair[0]===r.origin_country&&pair[1]===r.destination_country)) reason='ROUTE_OUTSIDE_SCOPE';
     if(reason){review.push({...r,reason});continue;}
     const key=trip(r), id='FB_'+r.group_id+'_'+r.post_id+'_'+date.replace(/-/g,'')+'_'+hash(key);
-    if(seen.has(id)||seenPostIds.has(r.post_id)||seenPostTrips.has(r.post_id+'|'+key)){duplicates.push({id,reason:'EXISTING_POST'});continue;}
+    if(seen.has(id)||seenPostIds.has(r.post_id)||seenPostTrips.has(r.post_id+'|'+postTrip(r))){duplicates.push({id,reason:'EXISTING_POST'});continue;}
     if(seenTrips.has(key)){duplicates.push({id,reason:'POSSIBLE_CROSS_POST_REVIEW'});continue;}
-    seen.add(id);seenPostTrips.add(r.post_id+'|'+key);seenTrips.add(key);
+    seen.add(id);seenPostTrips.add(r.post_id+'|'+postTrip(r));seenTrips.add(key);
     const record={gp_id:id,role:'GP',nom:r.operator,ville_depart:r.origin,ville_arrivee:r.destination,
       date_depart:date,date_expiration:date+'T23:59:59Z',statut:'A_VERIFIER',source:r.source_url,
       date_source:typeof r.date_as_posted==='string'?r.date_as_posted:date,

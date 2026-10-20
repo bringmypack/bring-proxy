@@ -75,5 +75,29 @@
     "immediate_run": "requested 2026-10-20; asynchronous completion not yet verified"
   },
   "browser_access_verified_at": "2026-10-20",
-  "manual_owner_import_enabled": true
+  "manual_owner_import_enabled": true,
+  "apify": {
+    "configured": true,
+    "plan": "Free",
+    "monthly_credit_usd": 5,
+    "max_charge_usd_per_run": 0.15,
+    "posts_per_group": 5,
+    "public_group_count": 5,
+    "timeout_seconds": 180,
+    "schedule_enabled": false,
+    "cloud_import_enabled": false,
+    "blocker": "Scoped read token and Drive OCR authorization pending; worker prepared but inactive.",
+    "trial_results": [
+      {
+        "groups": 1,
+        "posts": 10,
+        "credit_usd": 0.051
+      },
+      {
+        "groups": 5,
+        "posts": 25,
+        "credit_usd": 0.126
+      }
+    ]
+  }
 }

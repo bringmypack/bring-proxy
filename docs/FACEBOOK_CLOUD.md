@@ -49,3 +49,17 @@ Per completare la raccolta automatica servono un lettore cloud autorizzato, cope
 4. Per completare solo località mancanti dello stesso batch, eseguire completeVerifiedFacebookLocations.
 5. Controllare FB_RUNS e la ricerca dal connettore. Il planner puro non sostituisce il lock.
 6. Se cambia la proiezione pubblica Google, aggiornare lo stesso deployment SuperSayan3, conservando l'URL.
+
+## Préparation Apify Free (20 octobre 2026)
+
+Compte Free vérifié dans Console, limite mensuelle 5 USD de crédit. Deux essais terminés: 10 posts du groupe prioritaire (0,051 USD de crédit), puis 25 posts des cinq groupes publics (0,126 USD). Aucun abonnement payant activé.
+
+Une tâche unique est enregistrée: cinq posts par groupe, ordre utilisateur, timeout 180 secondes et plafond 0,15 USD par exécution. La collecte est un échantillon récent, pas un historique exhaustif. Le groupe privé est exclu.
+
+FacebookCloud.gs prépare un worker propriétaire désactivé par défaut. Il lit Apify avec une clé limitée à la lecture, traite une file sous lock, lit les images via OCR Google Drive, valide les dates et conserve les cas ambigus en révision. Aucune API de modèle de langage. Les placeholders « May be an image of text » ne sont pas de vrais textes OCR.
+
+Activation en attente: autorisation explicite pour créer/transmettre une clé Apify de lecture dans les propriétés privées du projet Apps Script et pour le scope Google drive.file (documents OCR créés par le worker). La clé ne doit jamais entrer dans GitHub, la feuille ou les logs. Conserver les scopes historiques; ajouter seulement les scopes nécessaires au worker et à son déclencheur. Activer Drive API dans le projet Google associé avant le test OCR.
+
+Après accord: configurer BMP_APIFY_READ_TOKEN et BMP_APIFY_TASK_ID dans Script Properties; tester OCR/import, puis définir BMP_FACEBOOK_OCR_AUTHORIZED=true et installer le déclencheur horaire via installFacebookCloudTrigger. Activer ensuite la planification Apify. L’ancien report ChatGPT doit être suspendu seulement après validation de ce parcours.
+
+Les nouvelles feuilles FB_QUEUE et FB_OCR_CACHE seront créées au premier traitement autorisé. Le worker ne démarre aucun run Apify et ne peut donc pas augmenter la fréquence ou activer un plan payant. Le blocage du crédit Free reste le plafond final.
