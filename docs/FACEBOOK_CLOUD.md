@@ -39,7 +39,7 @@ Le celle post_id e image_id hanno prefissi testuali per impedire l'arrotondament
 
 Sotto lock condiviso, l'importatore mappa le colonne per intestazione e verifica ogni ricevuta di salvataggio. Il parser richiede direzione e data con anno espliciti e coerenti. Date contraddittorie, indirizzi non assegnabili e tratte non riconosciute restano in FB_REVIEW. Non inventa capacità, disponibilità o anno. Un salvataggio non verifica l'identità del GP. Le offerte importate restano A_VERIFIER.
 
-## Verifica reale del 20 ottobre
+## Verifica iniziale del 20 ottobre (prima del miglioramento)
 
 - Corretto il blocco Apify: prima task HTTP 200 e dataset HTTP 403; ora entrambi HTTP 200.
 - 25 pubblicazioni lette e trattate, 25 ID unici esatti, nessun PENDING, un solo trigger orario.
@@ -57,3 +57,13 @@ Tre annunci già verificati restano ricercabili: Alioune Sylla Paris–Dakar 21 
 Le città restano in ville_depart / ville_arrivee. Quartieri e luoghi sono nelle colonne dedicate da AE; latitudine/longitudine nelle colonne esistenti, mappate per intestazione. precision_gps_depart / precision_gps_arrivee e geocodage_depart / geocodage_arrivee dichiarano il luogo effettivamente riconosciuto e la precisione. Il centro di un quartiere non è il punto di consegna. Unité 25 non localizzata univocamente conserva il testo e l'eventuale area più ampia dichiarata.
 
 La ricerca riconosce località pubbliche e restituisce la precisione disponibile. Non calcola ancora distanze né ordina dal GP più vicino. Date flessibili aumentano le possibilità senza garantire disponibilità. Pagamenti ancora di prova: nessuna promessa commerciale di fondi protetti finché il servizio non è attivato.
+
+## Amélioration du lecteur, 20 octobre 2026
+
+Version 2026-10-20.2 : trajets sans tiret, dates JJ-MM-AAAA, en-têtes répétés, adresses explicites et points de dépôt multiples. Une adresse ne bloque plus tout le voyage lorsque son rattachement est clair. Les lieux et indications de transport sont conservés; plusieurs dépôts restent sans point GPS unique. Pour une adresse géocodée, le numéro et le code postal doivent correspondre aux composants renvoyés par Google, avec précision adresse. Une année manquante, une direction indéterminée ou un départ récurrent ne deviennent pas un voyage daté inventé.
+
+Chaque version du lecteur remet une seule fois les erreurs de lecture admissibles dans la file. Les échecs techniques et les lignes déjà traitées ne sont pas rouverts. Les lignes FB_REVIEW résolues sont conservées et marquées IMPORTED_TO_CATALOGUE ou DUPLICATE_IN_CATALOGUE. Le préfixe descriptif « Annonce de » est ignoré pour comparer les noms lors de la déduplication entre groupes.
+
+Corpus de régression : 25 publications publiques, contacts masqués et URL CDN remplacées. 11 publications lisibles, 14 encore à vérifier. Après déduplication avec les trois voyages déjà importés : 2 nouveaux voyages et 9 doublons attendus. 58 tests passent. Retraitement cloud réel terminé : 2 voyages enregistrés aux lignes 25 et 26, 9 doublons écartés, 14 publications encore en révision (8 sans date/année complète, 4 départs récurrents, 2 trajets non reconnus). Aucun nouvel OCR; le cache existant a suffi. Les deux nouvelles annonces sont retrouvées par les outils Chat-GP dans les deux sens pour le 21 octobre 2026. Un seul déclencheur horaire reste actif. Les quatre dossiers du batch manuel initial sont distincts de ce bilan.
+
+Deuxième exécution réelle de la maintenance : added=0, duplicates=0, review=0, queued=0, ocr=0, requeued=0; aucun retraitement répété. Audit : DONE=11, REVIEW=14, 25 ID uniques, un seul déclencheur horaire actif.

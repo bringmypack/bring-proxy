@@ -84,3 +84,48 @@ test('Text-prefixed image IDs reuse OCR across separate reads without network ca
  assert.equal(c.fbCloudOcr_({id},{rows:[['IMAGE_'+id,'OK','cached poster']]},budget),'cached poster');
  assert.equal(budget.remaining,8);
 });
+
+test('Plain poster headings, hyphen dates and repeated image headers preserve the trip',()=>{
+ const r=parse({...item,text:'21-10-2026\nPARIS DAKAR\nPARIS DAKAR'}).records;
+ assert.equal(r.length,1);assert.equal(r[0].departure_date,'2026-10-21');assert.equal(r[0].origin,'Paris');
+ const mixed=parse({...item,text:'Paris Dakar 21 octobre 2026\nRetour Dakar-Paris 27 octobre 2026'}).records;
+ assert.equal(mixed.length,2);assert.deepEqual(mixed.map(r=>r.departure_date),['2026-10-21','2026-10-27']);
+});
+test('A bound street address is usable; multiple depots retain all text without selecting one GPS point',()=>{
+ const r=parse({...item,text:'GP Paris-Dakar 21 octobre 2026\n6 rue Affre\nParis 75018'}).records[0];
+ assert.equal(r.origin_place.street_number,'6');assert.equal(r.origin_place.postal_code,'75018');assert.equal(r.origin_place.precision,'adresse');
+ const multi=parse({...item,text:"GP Paris-Dakar 21 octobre 2026\n9 RUE DE LA GOUTTE D'OR 75018 2 ALLÉE DES FAISANS LIMEIL-BRÉVANNES 94450"}).records[0];
+ assert.equal(multi.origin_place.query,'');assert.equal(multi.origin_place.precision,'A_VERIFIER');
+ assert.match(multi.origin_place.text,/GOUTTE D'OR/);assert.match(multi.origin_place.text,/FAISANS/);
+});
+test('Missing years and recurring schedules never create invented dated departures',()=>{
+ assert.equal(parse({...item,text:'Paris Dakar départ le 24 octobre'}).review.reason,'DATE_YEAR_REQUIRED');
+ assert.equal(parse({...item,text:'Paris Dakar départ tous les jours'}).review.reason,'RECURRING_SCHEDULE_REQUIRED');
+ assert.equal(parse({...item,text:'Paris Dakar 31-02-2026'}).records.length,0);
+ const r=parse({...item,text:'GP Paris-Dakar 21 octobre 2026 Vitry-sur-Seine Parcelles U21'}).records[0];
+ assert.doesNotMatch(r.origin_place.text,/Parcelles/);assert.doesNotMatch(r.destination_place.text,/Vitry/);
+ assert.match(r.destination_place.neighborhood,/unité 21/);
+});
+test('Real redacted review sample: 11 interpretable posts, only 2 new trips after cross-group dedupe',async()=>{
+ const fixtures=JSON.parse(await readFile(new URL('./fixtures/facebook-posts-public-redacted.json',import.meta.url),'utf8'));
+ const c=vm.createContext({});vm.runInContext(await readFile(new URL('../apps-script/FacebookImport.gs',import.meta.url),'utf8'),c);
+ const results=fixtures.map(x=>extractFacebookOffers(x.post,[x.evidence],today));
+ assert.equal(results.filter(r=>r.records.length).length,11);assert.equal(results.filter(r=>r.review).length,14);
+ const records=results.flatMap(r=>r.records);
+ const headers=['gp_id','role','nom','ville_depart','ville_arrivee','date_depart','statut','source','date_source'];
+ const existing=c.FB_IMPORT_BATCH.filter(r=>r.year_verified&&!r.date_conflict);
+ const plan=planFacebookImport(records,existing,headers,c.FB_IMPORT_SOURCES,today);
+ assert.equal(plan.rows.length,2);assert.equal(plan.duplicates.length,9);
+ const aicha=records.find(r=>r.post_id==='1880209066483185');
+ assert.equal(aicha.origin,'Dakar');assert.equal(aicha.destination,'Paris');assert.equal(aicha.departure_date,'2026-10-21');
+ assert.match(aicha.origin_place.text,/GUEDIEWAYE-ARRET BRT/);assert.match(aicha.origin_place.text,/TERMINUS BUS 64/);
+ assert.match(aicha.destination_place.text,/86 rue Joseph Maistre/);assert.match(aicha.destination_place.text,/Fresnes/);
+});
+test('A parser release retries extraction reviews once and never reopens completed or technical failures',async()=>{
+ const code=await readFile(new URL('../apps-script/FacebookCloud.gs',import.meta.url),'utf8'),c=vm.createContext({});vm.runInContext(code,c);
+ const data=[[],['POST_1','','REVIEW',1,'','ADDRESS_REVIEW_REQUIRED'],['POST_2','','DONE',1,'',''],['POST_3','','REVIEW',3,'','IMAGE_UNAVAILABLE']];
+ const sheet={getDataRange:()=>({getValues:()=>data}),getRange:(row,col)=>({setValues:v=>{data[row-1][col-1]=v[0][0];data[row-1][col]=v[0][1];}})};
+ const p=new Map(),props={getProperty:k=>p.get(k),setProperty:(k,v)=>p.set(k,v)};
+ assert.equal(c.fbCloudRetryReview_(sheet,props),1);assert.equal(data[1][2],'PENDING');assert.equal(data[1][3],0);
+ assert.equal(data[2][2],'DONE');assert.equal(data[3][2],'REVIEW');assert.equal(c.fbCloudRetryReview_(sheet,props),0);
+});
