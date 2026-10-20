@@ -45,3 +45,11 @@ function processFacebookCloudBacklog(){
  }
  Logger.log(JSON.stringify({batches:runs}));
 }
+
+// Owner-only maintenance after deploying a tested parser release.
+function upgradeFacebookCloudReader(){
+  installFacebookCloudTrigger();
+  syncFacebookCloud();
+  processFacebookCloudBacklog();
+  auditFacebookCloud();
+}

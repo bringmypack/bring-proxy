@@ -121,26 +121,39 @@
       "dataset_http": 200,
       "posts": 25,
       "unique_queue_posts": 25,
-      "queue_review": 25,
+      "queue_done": 11,
+      "queue_review": 14,
       "queue_pending": 0,
-      "new_catalogue_rows": 0,
+      "new_catalogue_rows": 2,
+      "duplicates_detected": 9,
       "review_reasons": {
-        "ADDRESS_REVIEW_REQUIRED": 9,
-        "DATE_ROUTE_AMBIGUOUS": 6,
-        "ROUTE_REQUIRED": 10
+        "DATE_YEAR_REQUIRED": 8,
+        "RECURRING_SCHEDULE_REQUIRED": 4,
+        "ROUTE_REQUIRED": 2
       },
-      "existing_verified_records_replayed": 3,
-      "duplicates_detected": 3,
-      "extra_rows_on_replay": 0,
+      "receipts": [
+        {
+          "id": "FB_1430214083851753_3160095237530287_20261021_73f67fa1",
+          "row": 25
+        },
+        {
+          "id": "FB_320004609170313_1880209066483185_20261021_c6209e99",
+          "row": 26
+        }
+      ],
+      "ocr_calls_for_reprocess": 0,
+      "public_search_verified": true,
       "hourly_triggers": 1,
-      "tests_passed": 52,
+      "tests_passed": 58,
       "final_replay": {
         "added": 0,
         "duplicates": 0,
         "review": 0,
         "queued": 0,
-        "ocr": 0
+        "ocr": 0,
+        "requeued": 0
       }
-    }
+    },
+    "parser_version": "2026-10-20.2"
   }
 }

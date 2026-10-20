@@ -20,3 +20,13 @@ test('Owner importer embeds the same tested planner, without an HTTP import acti
  assert.ok(script.startsWith(planner.replace('export function','function')));
  assert.doesNotMatch(script,/function doPost|function doGet/);
 });
+
+test('Street GPS requires the exact house number, postcode and address-level result',()=>{
+ const address={query:'6 rue Affre 75018 Paris France',match_tokens:['6','rue','affre'],precision:'adresse',street_number:'6',postal_code:'75018'};
+ const candidate={formatted_address:'6 Rue Affre, 75018 Paris, France',address_components:[{types:['country'],short_name:'FR'},{types:['street_number'],long_name:'6'},{types:['postal_code'],long_name:'75018'}],geometry:{location_type:'ROOFTOP',location:{lat:48.8,lng:2.3}}};
+ const run=r=>{const c=vm.createContext({GOOGLE_MAPS_API_KEY:'test-not-a-real-key',UrlFetchApp:{fetch:()=>({getContentText:()=>JSON.stringify({status:'OK',results:[r]})})}});vm.runInContext(script,c);return c.fbImportGeocode_(address,'FR');};
+ assert.equal(run(candidate).verified,true);
+ const wrongNumber=structuredClone(candidate);wrongNumber.address_components[1].long_name='16';assert.equal(run(wrongNumber).verified,false);
+ const wrongPostal=structuredClone(candidate);wrongPostal.address_components[2].long_name='75019';assert.equal(run(wrongPostal).verified,false);
+ const approximate=structuredClone(candidate);approximate.geometry.location_type='APPROXIMATE';assert.equal(run(approximate).verified,false);
+});

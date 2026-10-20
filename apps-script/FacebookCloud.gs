@@ -33,32 +33,29 @@ function redactFacebookContacts(text) {
 }
 
 function extractFacebookOffers(post, imageTexts, today) {
-  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const raw=[post.text,post.ocr_text,...imageTexts].filter(Boolean).join('\n').slice(0,60000);
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ');
+  const raw=[post.text,post.ocr_text,...imageTexts].filter(Boolean).join('\n\n').slice(0,60000);
   const text=norm(raw).replace(/[^\x20-\x7E\n€→]/g,' ');
-  const fail=reason=>({records:[],review:{source_url:post.source_url,post_id:post.post_id,operator:post.author,reason,
-    evidence:redactFacebookContacts(raw).slice(0,14000)}});
+  const fail=reason=>({records:[],review:{source_url:post.source_url,post_id:post.post_id,operator:post.author,reason,evidence:redactFacebookContacts(raw).slice(0,14000)}});
   if(!/^\d{4}-\d{2}-\d{2}$/.test(today))throw Error('INVALID_TODAY');
   if(!raw.trim())return fail('IMAGE_TEXT_REQUIRED');
-  if(/(?:je\s+(?:cherche|recherche)|cherche\s+(?:un|une)\s+(?:gp|voyageur)|besoin\s+d[' ]un\s+gp)/.test(text))return fail('SENDER_REQUEST');
-  const cities=[
-    ['saint louis','Saint-Louis','SN'],['dakar','Dakar','SN'],['thies','Thiès','SN'],['mbour','Mbour','SN'],['touba','Touba','SN'],['ziguinchor','Ziguinchor','SN'],['kolda','Kolda','SN'],
-    ['paris','Paris','FR'],['lyon','Lyon','FR'],['marseille','Marseille','FR'],['toulouse','Toulouse','FR'],['lille','Lille','FR'],['nice','Nice','FR'],['bordeaux','Bordeaux','FR'],['nantes','Nantes','FR'],['montpellier','Montpellier','FR']
-  ];
-  const byName=new Map(cities.map(c=>[c[0],c]));
-  const cityPattern=cities.map(c=>c[0].replace(/ /g,'[- ]')).join('|');
-  const routes=[...text.matchAll(new RegExp('\\b('+cityPattern+')\\s*(?:[-/>→]+|vers|pour)\\s*('+cityPattern+')\\b','g'))]
-    .map(m=>({start:m.index,end:m.index+m[0].length,origin:byName.get(m[1].replace(/-/g,' ')),destination:byName.get(m[2].replace(/-/g,' '))}))
-    .filter(r=>r.origin[2]!==r.destination[2]);
+  if(/(?:je\s+(?:cherche|recherche)|cherche\s+(?:un|une)\s+(?:gp|voyageur)|besoin\s+d[ ]un\s+gp)/.test(text))return fail('SENDER_REQUEST');
+  const cities=[['saint louis','Saint-Louis','SN'],['dakar','Dakar','SN'],['thies','Thiès','SN'],['mbour','Mbour','SN'],['touba','Touba','SN'],['ziguinchor','Ziguinchor','SN'],['kolda','Kolda','SN'],['paris','Paris','FR'],['lyon','Lyon','FR'],['marseille','Marseille','FR'],['toulouse','Toulouse','FR'],['lille','Lille','FR'],['nice','Nice','FR'],['bordeaux','Bordeaux','FR'],['nantes','Nantes','FR'],['montpellier','Montpellier','FR']];
+  const byName=new Map(cities.map(c=>[c[0],c])),cityPattern=cities.map(c=>c[0].replace(/ /g,'[- ]')).join('|');
+  const routeMatches=separator=>[...text.matchAll(new RegExp('\\b('+cityPattern+')'+separator+'('+cityPattern+')\\b','g'))].map(m=>({start:m.index,end:m.index+m[0].length,origin:byName.get(m[1].replace(/-/g,' ')),destination:byName.get(m[2].replace(/-/g,' '))})).filter(r=>r.origin[2]!==r.destination[2]);
+  // A separator is optional on common poster headers: PARIS DAKAR.
+  const explicitRoutes=routeMatches('\\s*(?:[-/>→]+|vers|pour|a)\\s*');
+  const plainRoutes=routeMatches('[ \\t]+').filter(p=>!explicitRoutes.some(e=>p.start<e.end&&p.end>e.start));
+  const routes=[...explicitRoutes,...plainRoutes].sort((a,b)=>a.start-b.start);
   if(!routes.length)return fail('ROUTE_REQUIRED');
   if(!post.author||post.author.trim().length<2)return fail('AUTHOR_REQUIRED');
+  const routeKeys=new Set(routes.map(r=>r.origin[1]+'|'+r.destination[1]));
   const monthNames=['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
-  const dateRegex=new RegExp('\\b(\\d{1,2})\\s+('+monthNames.join('|')+')\\s+(20\\d{2})\\b|\\b(20\\d{2})-(\\d{2})-(\\d{2})\\b|\\b(\\d{1,2})[/.](\\d{1,2})[/.](20\\d{2})\\b','g');
+  const dateRegex=new RegExp('\\b(\\d{1,2})\\s+('+monthNames.join('|')+')\\s+(20\\d{2})\\b|\\b(20\\d{2})-(\\d{2})-(\\d{2})\\b|\\b(\\d{1,2})[/.\\-](\\d{1,2})[/.\\-](20\\d{2})\\b','g');
   const valid=d=>!isNaN(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d;
-  const dates=s=>[...s.matchAll(dateRegex)].map(m=>m[1]?[m[3],monthNames.indexOf(m[2])+1,m[1]]:m[4]?[m[4],m[5],m[6]]:[m[9],m[8],m[7]])
-    .map(a=>a.map((v,i)=>i?String(v).padStart(2,'0'):String(v)).join('-')).filter(valid);
-  const allDates=[...new Set(dates(text))];
-  // Relative expressions must agree with explicit image dates. No implicit year.
+  const dateEntries=s=>[...s.matchAll(dateRegex)].map(m=>({index:m.index,date:(m[1]?[m[3],monthNames.indexOf(m[2])+1,m[1]]:m[4]?[m[4],m[5],m[6]]:[m[9],m[8],m[7]]).map((v,i)=>i?String(v).padStart(2,'0'):String(v)).join('-')})).filter(e=>valid(e.date));
+  const dates=s=>dateEntries(s).map(e=>e.date),allDates=[...new Set(dates(text))];
+  if(!allDates.length)return fail(/\btou[st]\s+les\s+jours\b/.test(text)?'RECURRING_SCHEDULE_REQUIRED':'DATE_YEAR_REQUIRED');
   const relative=/\bapres[- ]demain\b/.test(text)?2:/\bdemain\b/.test(text)?1:/\baujourd hui\b/.test(text)?0:null;
   if(relative!==null&&post.posted_at&&allDates.length===1){
     const d=new Date(post.posted_at);if(!isNaN(d)){
@@ -67,63 +64,91 @@ function extractFacebookOffers(post, imageTexts, today) {
       if(allDates[0]!==expected.toISOString().slice(0,10))return fail('DATE_CONFLICT');
     }
   }
-  const priceMatches=[...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(€|eur|fcfa|f\s*cfa|cfa|xof)\s*(?:\/|par|le)?\s*(?:kg|kilo)/g)];
-  const prices=[...new Set(priceMatches.map(m=>Number(m[1].replace(',','.'))+'|'+(/eur|€/.test(m[2])?'EUR':'XOF')))];
+  const prices=[...new Set([...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(€|eur|fcfa|f\s*cfa|cfa|xof)\s*(?:\/|par|le)?\s*(?:kg|kilo)/g)].map(m=>Number(m[1].replace(',','.'))+'|'+(/eur|€/.test(m[2])?'EUR':'XOF')))];
   const locations=[
-    {re:/parcelles\s+assainies(?:\s*(?:unite|u)\s*[- ]?\s*(\d{1,2}))?/g,country:'SN',city:'Dakar',label:m=>'Parcelles Assainies'+(m[1]?' unité '+m[1]:''),precision:'quartier_approx'},
+    {re:/\bparcelles(?:\s+assainies?)?(?:\s*(?:unite|u)\s*[- ]?\s*(\d{1,2}))?/g,country:'SN',city:'Dakar',label:m=>'Parcelles Assainies'+(m[1]?' unité '+m[1]:''),precision:'quartier_approx'},
     {re:/\bouakam\b/g,country:'SN',city:'Dakar',label:()=> 'Ouakam',precision:'quartier_approx'},
     {re:/\bscat[- ]?urbam\b/g,country:'SN',city:'Dakar',label:()=> 'Scat Urbam',precision:'quartier_approx'},
     {re:/\bsoprim\b/g,country:'SN',city:'Dakar',label:()=> 'Soprim',precision:'quartier_approx'},
-    {re:/\b(?:yoff|medina|mermoz|sacre[- ]coeur|hlm(?:\s+\d+)?)\b/g,country:'SN',city:'Dakar',label:m=>m[0],precision:'quartier_approx'},
+    {re:/\b(?:yoff|medina|mermoz|sacre[- ]coeur|hlm(?:\s+\d+)?|yeumbeul|ponty|sandaga|maristes?|liberte\s+[1-6](?:\s+extension)?)\b/g,country:'SN',city:'Dakar',label:m=>m[0],precision:'quartier_approx'},
+    {re:/\bguediawaye\b/g,country:'SN',city:'Dakar',label:m=>m[0],precision:'commune_approx'},
+    {re:/\bouest[- ]foire\b/g,country:'SN',city:'Dakar',label:()=> 'Ouest-Foire',precision:'quartier_approx'},
     {re:/\bngor(?:\s+almadies)?\b/g,country:'SN',city:'Dakar',label:m=>m[0],precision:'quartier_approx'},
     {re:/\bvitry[- ]sur[- ]seine\b/g,country:'FR',city:'Paris',label:()=> 'Vitry-sur-Seine',precision:'commune_approx'},
     {re:/\bcergy\b/g,country:'FR',city:'Paris',label:()=> 'Cergy',precision:'commune_approx'},
+    {re:/\blimeil[- ]brevannes\b/g,country:'FR',city:'Paris',label:()=> 'Limeil-Brévannes',precision:'commune_approx'},
+    {re:/\bfresnes\b/g,country:'FR',city:'Paris',label:()=> 'Fresnes',precision:'commune_approx'},
     {re:/\bparis\s+(1[0-9]|20|[1-9])(?:eme|ieme|e)\b/g,country:'FR',city:'Paris',label:m=>'Paris '+m[1]+'e',precision:'quartier_approx'}
   ];
-  const foundPlaces=[];
-  locations.forEach(rule=>{for(const m of text.matchAll(rule.re))foundPlaces.push({...rule,name:rule.label(m)});});
-  if(/\b(?:rue|avenue|boulevard|impasse)\b/.test(text))return fail('ADDRESS_REVIEW_REQUIRED');
-  if(/\b(?:quartier|adresse|depot|retrait)\b/.test(text)&&!foundPlaces.length)return fail('LOCATION_REVIEW_REQUIRED');
-  const out=[];
+  const lines=raw.replace(/\r/g,'').split('\n').map(s=>({raw:s.trim(),text:norm(s)})),foundPlaces=[],addresses=[],locationNotes=[];
+  let countryContext='',unknownAddress=false;
+  const streetRe=/(?:\b\d{1,4}(?:\s*(?:bis|ter))?\s*|\b)(?:rue|allee|avenue|boulevard|impasse)\b/g;
+  for(let n=0;n<lines.length;n++){
+    const line=lines[n];
+    if(!line.text.trim())countryContext='';
+    if(/adresses?\s+(?:au|en)\s+senegal|^\s*(?:senegal|dakar)\s*:/.test(line.text))countryContext='SN';
+    if(/(?:retrait|adresses?|reception).*\b(?:paris|france)\b|^\s*france\s*:/.test(line.text))countryContext='FR';
+    if(countryContext&&/\b(?:arret|terminus|brt|rond[- ]point|cote|gare|extension|case|gued)/.test(line.text))locationNotes.push({country:countryContext,city:countryContext==='SN'?'Dakar':'Paris',text:line.raw});
+    for(const rule of locations)for(const m of line.text.matchAll(rule.re))foundPlaces.push({...rule,name:rule.label(m),line:line.raw});
+    const matches=[...line.text.matchAll(streetRe)];
+    for(let k=0;k<matches.length;k++){
+      const m=matches[k],end=matches[k+1]?.index??line.text.length;
+      let fragment=line.raw.slice(m.index,end).trim(),f=norm(fragment);
+      const next=lines[n+1];
+      if(!/\b(?:75|77|78|91|92|93|94|95)\d{3}\b|\b(?:paris|lyon|marseille|dakar)\b/.test(f)&&next&&next.raw.length<100&&/\b(?:75|77|78|91|92|93|94|95)\d{3}\b|^\s*(?:paris|lyon|marseille|dakar)\b/.test(next.text)&&!new RegExp('(?:'+cityPattern+')\\s*[-/>→]\\s*(?:'+cityPattern+')').test(next.text)){
+        fragment+=' '+next.raw;f=norm(fragment);
+      }
+      const fr=cities.filter(c=>c[2]==='FR'&&new RegExp('\\b'+c[0]+'\\b').test(f));
+      const sn=cities.filter(c=>c[2]==='SN'&&new RegExp('\\b'+c[0]+'\\b').test(f));
+      const postal=(f.match(/\b((?:75|77|78|91|92|93|94|95)\d{3})\b/)||[])[1];
+      const nearby=[...new Set(foundPlaces.filter(p=>p.line===line.raw).map(p=>p.country))];
+      let country=postal||fr.length&&!sn.length?'FR':sn.length&&!fr.length?'SN':nearby.length===1?nearby[0]:countryContext;
+      if(fr.length&&sn.length)country='';
+      const city=country==='FR'?(fr.length===1?fr[0][1]:postal?'Paris':''):country==='SN'?(sn.length===1?sn[0][1]:'Dakar'):'';
+      if(!country||!city){unknownAddress=true;continue;}
+      const number=(f.match(/^(\d{1,4}(?:\s*(?:bis|ter))?)/)||[])[1];
+      addresses.push({text:fragment,country,city,number,postal,precision:number?'adresse':'quartier_approx'});
+    }
+  }
+  if(unknownAddress)return fail('ADDRESS_REVIEW_REQUIRED');
+  if(/\b(?:quartier|adresse|depot|retrait)\b/.test(text)&&!foundPlaces.length&&!addresses.length)return fail('LOCATION_REVIEW_REQUIRED');
+  const makePlace=(city,country)=>{
+    const countryName=country==='FR'?'France':'Sénégal';
+    const areas=[...new Map(foundPlaces.filter(p=>p.country===country&&p.city===city).map(p=>[norm(p.name),p])).values()];
+    const points=[...new Map(addresses.filter(a=>a.country===country&&a.city===city).map(a=>[norm(a.text),a])).values()];
+    const independent=areas.filter(p=>!points.some(a=>norm(a.text).includes(norm(p.name))||p.name.match(/^Paris (\d+)e$/)&&a.postal==='750'+p.name.match(/^Paris (\d+)e$/)[1].padStart(2,'0')));
+    const notes=locationNotes.filter(p=>p.country===country&&p.city===city);
+    const details=[...new Set([...notes.map(p=>p.text),...points.map(a=>a.text),...areas.map(p=>foundPlaces.some(q=>q.line===p.line&&q.country!==country)||cities.some(c=>c[2]!==country&&new RegExp('\\b'+c[0]+'\\b').test(norm(p.line)))?p.name:p.line).filter(s=>s.length<1000)])];
+    const base={source_verified:true,text:details.length?details.join('; ')+', '+city+', '+countryName:city+', '+countryName,neighborhood:areas.map(p=>p.name).join('; ')};
+    if(points.length===1&&!independent.length&&!notes.length){
+      const a=points[0];return {...base,query:a.text+', '+countryName,match_tokens:norm(a.text).match(/[a-z]+|\d+/g).filter(t=>t.length>2||/^\d+$/.test(t)).slice(0,8),precision:a.precision,street_number:a.number||'',postal_code:a.postal||''};
+    }
+    if(points.length||areas.length>1||notes.length)return {...base,query:'',match_tokens:[],precision:'A_VERIFIER'};
+    if(areas.length===1){const p=areas[0];return {...base,query:p.name+', '+city+', '+countryName,match_tokens:norm(p.name).split(/[- ]+/).filter(v=>!['sur','seine','unite','e'].includes(v)).slice(0,4),precision:p.precision};}
+    return {...base,query:city+', '+countryName,match_tokens:[norm(city)],precision:'ville_approx'};
+  };
+  const out=[],seen=new Set();
   for(let i=0;i<routes.length;i++){
     const route=routes[i],next=routes[i+1]?.start??text.length;
     let ownDates=[...new Set(dates(text.slice(route.end,next)))];
-    if(!ownDates.length&&routes.length===1)ownDates=allDates;
+    if(routeKeys.size===1&&allDates.length===1)ownDates=allDates;
     if(ownDates.length!==1)return fail('DATE_ROUTE_AMBIGUOUS');
     const date=ownDates[0];if(date<today)continue;
-    const ahead=(new Date(date+'T12:00:00Z')-new Date(today+'T12:00:00Z'))/86400000;
-    if(ahead>366)return fail('DATE_TOO_FAR');
-    const weekday=text.slice(route.end,next).match(/\b(dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi)\s*(?=\d)/);
-    if(weekday&&['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'].indexOf(weekday[1])!==new Date(date+'T12:00:00Z').getUTCDay())return fail('WEEKDAY_CONFLICT');
-    const r={group_id:post.group_id,post_id:post.post_id,source_url:post.source_url,source_verified:true,year_verified:true,
-      kind:'traveller_offer',operator:'Annonce de '+post.author.trim(),origin:route.origin[1],destination:route.destination[1],
-      origin_country:route.origin[2],destination_country:route.destination[2],departure_date:date,
-      date_as_posted:'Date explicite '+date+'; texte original/OCR. Disponibilité à confirmer.'};
-    if(prices.length===1){const [p,c]=prices[0].split('|');r.price_per_kg=Number(p);r.currency=c;}
-    for(const side of ['origin','destination']){
-      const matches=foundPlaces.filter(p=>p.country===r[side+'_country']&&p.city===r[side]);
-      const unique=[...new Map(matches.map(p=>[p.name,p])).values()];
-      if(unique.length){
-        const names=unique.map(p=>p.name),country=r[side+'_country'];
-        r[side+'_place']={source_verified:true,text:names.join('; ')+', '+r[side]+', '+(country==='FR'?'France':'Sénégal'),
-          neighborhood:names.join('; '),query:unique.length===1?names[0]+', '+r[side]+', '+(country==='FR'?'France':'Sénégal'):'',
-          match_tokens:unique.length===1?norm(names[0]).split(/[- ]+/).filter(v=>!['sur','seine','unite','e'].includes(v)).slice(0,4):[],
-          precision:unique.length===1?unique[0].precision:'A_VERIFIER'};
-      } else r[side+'_place']={source_verified:true,text:r[side]+', '+(r[side+'_country']==='FR'?'France':'Sénégal'),neighborhood:'',
-        query:r[side]+', '+(r[side+'_country']==='FR'?'France':'Sénégal'),match_tokens:[norm(r[side])],precision:'ville_approx'};
+    if((new Date(date+'T12:00:00Z')-new Date(today+'T12:00:00Z'))/86400000>366)return fail('DATE_TOO_FAR');
+    for(const entry of dateEntries(text).filter(e=>e.date===date)){
+      const weekday=text.slice(Math.max(0,entry.index-15),entry.index).match(/(dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi)\s*$/);
+      if(weekday&&['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'].indexOf(weekday[1])!==new Date(date+'T12:00:00Z').getUTCDay())return fail('WEEKDAY_CONFLICT');
     }
-    out.push(r);
+    const key=route.origin[1]+'|'+route.destination[1]+'|'+date;if(seen.has(key))continue;seen.add(key);
+    const r={group_id:post.group_id,post_id:post.post_id,source_url:post.source_url,source_verified:true,year_verified:true,kind:'traveller_offer',operator:'Annonce de '+post.author.trim(),origin:route.origin[1],destination:route.destination[1],origin_country:route.origin[2],destination_country:route.destination[2],departure_date:date,date_as_posted:'Date explicite '+date+'; texte original/OCR. Disponibilité à confirmer.'};
+    if(prices.length===1){const [p,c]=prices[0].split('|');r.price_per_kg=Number(p);r.currency=c;}
+    r.origin_place=makePlace(r.origin,r.origin_country);r.destination_place=makePlace(r.destination,r.destination_country);out.push(r);
   }
   if(!out.length)return fail('EXPIRED');
   if(post.images?.length&&!imageTexts.length&&!post.ocr_text)return fail('IMAGE_TEXT_REQUIRED');
   return {records:out,review:null};
 }
-
-// Owner-only cloud worker. Never add an anonymous import action to doPost.
-// Existing public catalogue and traveller publication keep their deployment.
-// Configure Script Properties after explicit credential/OCR authorization:
-// BMP_APIFY_READ_TOKEN (scoped read only), BMP_APIFY_TASK_ID, BMP_FACEBOOK_CLOUD_ENABLED.
-// OCR additionally needs Drive API enabled and the drive.file OAuth scope.
+var FB_CLOUD_PARSER_VERSION='2026-10-20.2';
 var FB_CLOUD_ACTOR_ID='2chN8UQcH1CfxLRNE';
 var FB_CLOUD_QUEUE_HEADERS=['post_id','fonte','stato','tentativi','dati_pubblici','motivo','aggiornato'];
 var FB_CLOUD_OCR_HEADERS=['image_id','stato','testo','aggiornato'];
@@ -199,7 +224,7 @@ function syncFacebookCloud(){
   var props=PropertiesService.getScriptProperties();
   if(props.getProperty('BMP_FACEBOOK_CLOUD_ENABLED')!=='true')return {enabled:false};
   var lock=LockService.getScriptLock();if(!lock.tryLock(10000))return {busy:true};
-  var report={added:0,duplicates:0,review:0,queued:0,ocr:0};
+  var report={added:0,duplicates:0,review:0,queued:0,ocr:0,requeued:0};
   try{
     var token=props.getProperty('BMP_APIFY_READ_TOKEN'),task=props.getProperty('BMP_APIFY_TASK_ID');
     if(!token||!/^[A-Za-z0-9]+$/.test(task||''))throw Error('CLOUD_SETUP_REQUIRED');
@@ -209,6 +234,7 @@ function syncFacebookCloud(){
     var ocrSheet=fbImportTable_(book,'FB_OCR_CACHE',FB_CLOUD_OCR_HEADERS);
     var runResponse=fbCloudApi_('/actor-tasks/'+task+'/runs/last?status=SUCCEEDED',token),run=runResponse.data;
     if(!run||run.status!=='SUCCEEDED'||run.actId!==FB_CLOUD_ACTOR_ID||run.actorTaskId!==task||!/^[A-Za-z0-9]+$/.test(run.defaultDatasetId||''))throw Error('APIFY_RUN_INVALID');
+    report.requeued=fbCloudRetryReview_(queue,props);
     var queueData=queue.getDataRange().getValues(),exactIds=queueData.slice(1).map(fbCloudQueuePostId_),known=new Set(exactIds);
     if(exactIds.some(function(id,i){return queueData[i+1][0]!=='POST_'+id;}))queue.getRange(2,1,exactIds.length,1).setNumberFormat('@').setValues(exactIds.map(function(id){return ['POST_'+id];}));
     if(props.getProperty('BMP_APIFY_LAST_ENQUEUED_RUN')!==run.id){
@@ -238,7 +264,9 @@ function syncFacebookCloud(){
         else {
           var importReport=fbCloudSave_(book,extracted.records,today);
           report.added+=importReport.added;report.duplicates+=importReport.duplicates;
-          queue.getRange(n+1,3).setValue('DONE');queue.getRange(n+1,6).setValue(JSON.stringify(importReport));
+          report.review+=importReport.review;
+          queue.getRange(n+1,3).setValue(importReport.review?'REVIEW':'DONE');queue.getRange(n+1,6).setValue(JSON.stringify(importReport));
+          if(importReport.added||importReport.duplicates)fbCloudReviewResolved_(book,post,importReport.added?'IMPORTED_TO_CATALOGUE':'DUPLICATE_IN_CATALOGUE');
         }
         queue.getRange(n+1,7).setValue(new Date());
       }catch(error){
@@ -264,7 +292,8 @@ function syncFacebookCloud(){
 function fbCloudReview_(book,r){
   var sheet=fbImportTable_(book,'FB_REVIEW',['chiave','operatore','partenza','arrivo','data','fonte','motivo','luogo_partenza','luogo_arrivo','evidenza_data']);
   var key='CLOUD|'+r.post_id;
-  if(sheet.getDataRange().getValues().some(function(row){return row[0]===key;}))return;
+  var prior=sheet.getDataRange().getValues().findIndex(function(row){return row[0]===key;});
+  if(prior>=1){sheet.getRange(prior+1,7).setValue(gpPublicationText(r.reason));sheet.getRange(prior+1,10).setValue(gpPublicationText(r.evidence));return;}
   sheet.appendRow([key,r.operator||'','','','',r.source_url,r.reason,'','',r.evidence].map(gpPublicationText));
 }
 function fbCloudSave_(book,records,today){
@@ -290,4 +319,18 @@ function fbCloudSave_(book,records,today){
   });
   plan.review.forEach(function(r){fbCloudReview_(book,{post_id:r.post_id,source_url:r.source_url,operator:r.operator,reason:r.reason,evidence:r.date_as_posted});});
   return {added:receipts.length,duplicates:plan.duplicates.length,review:plan.review.length,receipts:receipts};
+}
+
+// A parser release retries eligible review rows once; daily runs do not loop.
+function fbCloudRetryReview_(queue,props){
+  if(props.getProperty('BMP_FACEBOOK_REVIEW_PARSER_VERSION')===FB_CLOUD_PARSER_VERSION)return 0;
+  var retry=['ADDRESS_REVIEW_REQUIRED','LOCATION_REVIEW_REQUIRED','DATE_ROUTE_AMBIGUOUS','ROUTE_REQUIRED','DATE_YEAR_REQUIRED','RECURRING_SCHEDULE_REQUIRED'];
+  var rows=queue.getDataRange().getValues(),count=0;
+  for(var n=1;n<rows.length;n++)if(rows[n][2]==='REVIEW'&&retry.indexOf(String(rows[n][5]))>=0){queue.getRange(n+1,3,1,2).setValues([['PENDING',0]]);count++;}
+  props.setProperty('BMP_FACEBOOK_REVIEW_PARSER_VERSION',FB_CLOUD_PARSER_VERSION);return count;
+}
+function fbCloudReviewResolved_(book,post,reason){
+  var sheet=book.getSheetByName('FB_REVIEW');if(!sheet)return;
+  var rows=sheet.getDataRange().getValues(),key='CLOUD|'+post.post_id;
+  for(var n=1;n<rows.length;n++)if(rows[n][0]===key&&rows[n][5]===post.source_url){sheet.getRange(n+1,7).setValue(reason);return;}
 }

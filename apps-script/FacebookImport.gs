@@ -5,7 +5,7 @@ function planFacebookImport(records, existingIds, headers, sources, today) {
   if(required.some(k=>!headers.includes(k)) || new Set(headers).size!==headers.length) throw Error('INVALID_HEADERS');
   const priority=new Map(sources.filter(s=>s.enabled&&s.visibility!=='private'&&s.public_import!==false).map(s=>[s.id,s.priority]));
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const trip=r=>[r.operator,r.origin,r.destination,r.departure_date,r.departure_time||''].map(norm).join('|');
+  const trip=r=>[norm(r.operator).replace(/^annonce de\s+/,''),r.origin,r.destination,r.departure_date,r.departure_time||''].map(norm).join('|');
   const postTrip=r=>[r.origin,r.destination,r.departure_date,r.departure_time||''].map(norm).join('|');
   const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return (h>>>0).toString(16).padStart(8,'0');};
   const seen=new Set(), seenPostIds=new Set(), seenPostTrips=new Set(), seenTrips=new Set(), rows=[], review=[], duplicates=[];
@@ -51,7 +51,6 @@ function planFacebookImport(records, existingIds, headers, sources, today) {
   }
   return {rows,review,duplicates};
 }
-
 var FB_IMPORT_SOURCES = [
   {
     "priority": 1,
@@ -363,6 +362,10 @@ function fbImportGeocode_(place, country) {
     var matches=data.results.filter(function(result){
       var countries=result.address_components.filter(function(c){return c.types.indexOf('country')>=0;});
       var address=norm(result.formatted_address);
+      var component=function(type){return result.address_components.find(function(c){return c.types.indexOf(type)>=0;});};
+      if(place.street_number&&(!component('street_number')||norm(component('street_number').long_name).replace(/ /g,'')!==norm(place.street_number).replace(/ /g,'')))return false;
+      if(place.postal_code&&(!component('postal_code')||component('postal_code').long_name!==place.postal_code))return false;
+      if(place.precision==='adresse'&&['ROOFTOP','RANGE_INTERPOLATED'].indexOf(result.geometry.location_type)<0)return false;
       return !result.partial_match && countries.some(function(c){return c.short_name===country;}) &&
         place.match_tokens.every(function(token){return address.indexOf(norm(token))>=0;});
     });
