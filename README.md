@@ -1,69 +1,65 @@
-# BringMyPack — dove intervenire
+# BringMyPack - dove intervenire
 
-**Riordino preparato, non ancora attivato.** Serve l'accesso in modifica
-dell'account proprietario `bringmypack@gmail.com` allo script e al foglio.
-Il servizio live resta sulla configurazione precedente fino alla verifica
-della migrazione. Questo ramo non deve essere promosso prima di quel passaggio.
+**Riordino attivo dal 20 ottobre 2026.** Ricerca e pubblicazione usano lo stesso
+catalogo Google. Chat-GP è aggiornato alla versione 0.72.0; lo script originale
+usa il deployment SuperSayan3, versione 59. Il codice del servizio è su main.
 
-## La struttura prevista
+## La struttura
 
-| Cosa vuoi modificare | Punto di intervento | Regola |
+| Cosa vuoi fare | Punto di intervento | Regola |
 | --- | --- | --- |
-| Usare il servizio | [Chat-GP](https://chatgpt.com/plugins/plugin_afd8702427448191a47aee7911aab8ea) | Unico ingresso per clienti e GP. |
-| Dati dei viaggi | [Catalogo principale](https://docs.google.com/spreadsheets/d/1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE/edit), `GP_TRANSPORTEURS` | Ricerca e pubblicazione usano questo stesso foglio dopo l'attivazione. |
-| Sapere dove intervenire | Scheda `GESTIONE` del catalogo principale | Creata dalla migrazione con collegamenti diretti. |
+| Usare il servizio | [Chat-GP](https://chatgpt.com/plugins/plugin_afd8702427448191a47aee7911aab8ea) | Ingresso per clienti e GP. |
+| Sapere dove intervenire | [Scheda GESTIONE](https://docs.google.com/spreadsheets/d/1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE/edit#gid=26110328) | Guida centrale con i collegamenti diretti. |
+| Dati dei viaggi | [Catalogo principale](https://docs.google.com/spreadsheets/d/1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE/edit), GP_TRANSPORTEURS | Destinazione unica della pubblicazione e fonte della ricerca. |
 | Comportamento della chat | [Istruzioni](plugin/skills/instructions/SKILL.md) | Pubblicare anche l'aggiornamento del plugin esistente; Git da solo non aggiorna il plugin. |
-| Collegamento di lettura | App esistente `BringMyPack — catalogue GP` | Componente tecnico di Chat-GP. Rinominare in `BringMyPack — connessione tecnica`. |
+| Collegamento di lettura | [BringMyPack — connessione tecnica](https://chatgpt.com/settings/plugins-settings/plugin_asdk_app_6ad5eb52ae9c8191ae77eee2c69edae5) | Dipendenza di Chat-GP, mantenuta con lo stesso ID. |
 | Configurazione del servizio | [lib/config.js](lib/config.js) | Un solo file per destinazione e URL Apps Script lato servizio. |
-| Regole di ricerca | [lib/catalog.js](lib/catalog.js), [api/catalogue.js](api/catalogue.js) | Solo proiezione pubblica; contatti esclusi. |
-| Salvataggio e lettura Google | [GpPublication.gs](apps-script/GpPublication.gs) nello [script originale](https://script.google.com/home/projects/1Wvw2p1Y0PMSEQ2sY5x2dRYzWJ7vSmho6Q1qBR9z28_nRQvxEfv-gxzlE/edit) | Conservare il deployment `SuperSayan3` e il suo URL. |
+| Regole di ricerca | [lib/catalog.js](lib/catalog.js), [api/catalogue.js](api/catalogue.js) | Solo dati pubblici; contatti esclusi. |
+| Salvataggio e lettura Google | [GpPublication.gs](apps-script/GpPublication.gs) nello [script originale](https://script.google.com/home/projects/1Wvw2p1Y0PMSEQ2sY5x2dRYzWJ7vSmho6Q1qBR9z28_nRQvxEfv-gxzlE/edit) | Aggiornare lo stesso deployment SuperSayan3 e conservarne l'URL. |
 | Card del viaggio | [lib/travel-card.js](lib/travel-card.js) | Pulsanti collegati a salvataggi reali. |
-| Rilascio tecnico | [Vercel](https://vercel.com/bringmypack-s-projects/bring-proxy), branch `main` | Una push su `main` aggiorna il servizio. Non distribuire da cartelle locali non sincronizzate. |
-| Vecchio foglio | [Archivio originale](https://docs.google.com/spreadsheets/d/1Op5k1Leaxjwi0Oa3Ic2t572zaNzdXEyRzFaV3lRmIis/edit) | Conservarlo. Dopo l'attivazione non aggiungere lì nuovi annunci. |
+| Rilascio tecnico | [Vercel](https://vercel.com/bringmypack-s-projects/bring-proxy), branch main | Una push su main aggiorna il servizio. |
+| Vecchio foglio | [Archivio originale](https://docs.google.com/spreadsheets/d/1Op5k1Leaxjwi0Oa3Ic2t572zaNzdXEyRzFaV3lRmIis/edit) | Conservato, fuori dal percorso attivo. Non aggiungervi nuovi annunci. |
 
-Due componenti collegati non sono due assistenti: **Chat-GP** contiene le
-istruzioni e usa la connessione tecnica per cercare. `/mcp` serve la lettura;
-`/api/mcp` serve la pubblicazione. Entrambi puntano allo stesso catalogo dopo
-il rilascio. La connessione tecnica resta una dipendenza: non eliminarla
-mentre è dichiarata in `.app.json` del plugin.
+Chat-GP contiene le istruzioni e usa la connessione tecnica per cercare.
+I due elementi hanno ruoli diversi: il punto di ingresso è Chat-GP.
+La connessione tecnica resta necessaria finché è dichiarata in .app.json.
 
-## Dati pubblici e dati interni
+Il servizio [bring-proxy-eta.vercel.app](https://bring-proxy-eta.vercel.app)
+espone /mcp per la ricerca e /api/mcp per la pubblicazione.
+Entrambi usano il catalogo principale attraverso lo script originale.
+Un 404 sulla sola pagina iniziale non indica un guasto degli strumenti.
 
-- Gli annunci Facebook importati conservano post fonte e incertezza sulla data.
-- I viaggi pubblicati dalla chat sono ricercabili dopo il salvataggio confermato.
-- Le righe storiche private non vengono pubblicate automaticamente.
-- Telefoni, richieste, coordinate GPS, chiavi di pubblicazione e dati di matching
-  non escono nella risposta di ricerca.
-- Un viaggio BringMyPack può avere un ID senza un URL pubblico. Non inventare un
-  link o una trasmissione del contatto. La messa in relazione va implementata
-  prima di prometterla.
+## Dati e verifiche
+
+- Migrati i due annunci Facebook pubblici mancanti, conservando ID e post fonte.
+- Le righe storiche private sono conservate e non pubblicate automaticamente.
+- I viaggi salvati dalla nuova procedura Chat-GP diventano ricercabili.
+- Telefoni, coordinate GPS, identificatori delle richieste e dati di matching
+  sono esclusi dai risultati della ricerca.
+- Gli annunci hanno disponibilità da confermare. Un annuncio BringMyPack può
+  avere un ID senza URL pubblico: non inventare link o invii del contatto.
 - I pagamenti non sono attivi.
 
-## Attivare il riordino
+Verifica live del 20 ottobre: connessione riuscita e ricerca Paris–Dakar dal
+20 al 31 ottobre riuscita dal connettore della chat, con un annuncio restituito.
+I 21 test automatici comprendono salvataggio, lettura pubblica e ricerca dello
+stesso ID, duplicati, filtri e isolamento dei contatti. Nessun viaggio fittizio
+è stato inserito nel catalogo live.
 
-1. Con l'account proprietario, aprire il progetto Apps Script originale.
-2. Sostituire la sezione `GpPublication.gs` con il file del ramo; aggiungere
-   `CatalogMigration.gs` come file distinto. Conservare il codice precedente
-   e non copiare chiavi o credenziali nel repository.
-3. Nel `doPost`, aggiungere soltanto:
-   `case 'readPublicCatalog': return jsonResponse(readPublicCatalog());`.
-   Le tre azioni di pubblicazione restano invariate. La migrazione non deve
-   essere esposta via HTTP.
-4. Nel vecchio helper `getSheet`, sostituire `getActiveSpreadsheet()` con
-   `openById(GP_PUBLICATION_SPREADSHEET)` per tenere anche le azioni storiche
-   sul catalogo principale.
-5. Eseguire `migrateBringMyPackCatalog` dall'editor. È idempotente: aggiunge
-   solo gli ID Facebook mancanti, conserva le altre righe, rinomina il file e
-   crea la scheda `GESTIONE`. Verificare il report senza stampare i contatti.
-6. Aggiornare **lo stesso deployment** `SuperSayan3`; verificare le capacità,
-   l'ID del file e `readPublicCatalog` prima della promozione su `main`.
-7. Eseguire `npm test`, promuovere il ramo e verificare ricerca e pubblicazione
-   dagli strumenti della chat. Non inserire viaggi fittizi nel catalogo live.
-8. Pubblicare l'overlay `plugin/` sullo stesso plugin, controllando la release
-   corrente. L'overlay omette volutamente gli asset e i collegamenti invariati;
-   non è un plugin completo da installare come copia.
-9. Rinominare l'app tecnica dalle impostazioni ChatGPT, mantenendo il suo ID.
-   Aggiornare qui lo stato solo dopo la verifica live.
+## Aggiornamenti successivi
 
-I test comprendono salvataggio → lettura pubblica → ricerca dello stesso ID,
-duplicati, filtri di direzione/data e isolamento dei contatti.
+1. Modificare il codice nel repository e avviare npm test.
+2. Se cambia il backend Google, aggiornare i file distinti già presenti
+   nello script originale: Code.gs, GpPublication.gs e CatalogMigration.gs.
+   Conservare le funzioni storiche e non copiare chiavi nel repository.
+3. Aggiornare lo stesso deployment SuperSayan3. Verificare capacità, ID del
+   catalogo e lettura pubblica prima di distribuire modifiche dipendenti.
+4. Promuovere le modifiche del servizio su main e controllare il rilascio Vercel.
+5. Se cambiano le istruzioni, pubblicare plugin/ come aggiornamento dello stesso
+   Chat-GP. È un overlay: gli asset e i collegamenti omessi vanno conservati.
+6. Verificare dagli strumenti della chat connessione, ricerca e validazione
+   della pubblicazione. Non inserire annunci fittizi nel catalogo live.
+
+CatalogMigration.gs serve alla migrazione e alla guida GESTIONE: non è esposto
+via HTTP e non va eseguito per ogni pubblicazione. La migrazione iniziale è
+già completata; l'archivio originale è rimasto invariato.
