@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import handler, { dispatch, SPREADSHEET_ID } from '../api/mcp.js';
+import { widgetHtml } from '../lib/travel-card.js';
 
 const script = await readFile(new URL('../apps-script/GpPublication.gs', import.meta.url),'utf8');
 const baseHeaders = ['gp_id','role','nom','whatsapp','ville_depart','lat_depart','lng_depart',
@@ -133,9 +134,69 @@ test('HTTP discovery, initialization, notification, malformed input and origin v
     status:c=>{result.status=c;return res;},json:b=>{result.body=b;return res;},end:()=>res};
     await handler({headers:{},method:'POST',...req},res);return result;};
   assert.equal((await invoke({body:{jsonrpc:'2.0',id:1,method:'initialize'}})).body.result.protocolVersion,'2025-03-26');
-  assert.equal((await invoke({body:{jsonrpc:'2.0',id:2,method:'tools/list'}})).body.result.tools.length,2);
+  assert.equal((await invoke({body:{jsonrpc:'2.0',id:2,method:'tools/list'}})).body.result.tools.length,3);
   assert.equal((await invoke({body:{jsonrpc:'2.0',method:'notifications/initialized'}})).status,202);
   assert.equal((await invoke({body:'broken'})).status,400);
   assert.equal((await invoke({headers:{origin:'https://untrusted.invalid'},body:{}})).status,403);
   assert.equal((await invoke({method:'GET'})).status,405);
+});
+
+test('preview renders a real MCP app and never writes, including incomplete drafts',async()=>{
+  const {state,context}=fixture();
+  const preview=await dispatch({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'prepare_departure',arguments:{ville_depart:'Lille',ville_arrivee:'Saint-Louis'}}},async d=>context[d.action](d));
+  assert.equal(preview.result.structuredContent.saved,false);assert.equal(preview.result.structuredContent.ready,true);
+  assert.equal(preview.result.structuredContent.preview.ville_depart,'Lille');assert.equal(state.writes,0);
+  const resource=await dispatch({jsonrpc:'2.0',id:5,method:'resources/read',params:{uri:'ui://bringmypack/travel-card-v1.html'}});
+  assert.equal(resource.result.contents[0].mimeType,'text/html;profile=mcp-app');
+  assert.match(resource.result.contents[0].text,/Publier mon voyage/);
+  assert.match(resource.result.contents[0].text,/ui\/initialize/);
+  assert.match(resource.result.contents[0].text,/event.source!==window.parent/);
+  assert.equal((await dispatch({jsonrpc:'2.0',id:6,method:'resources/read',params:{uri:'file:///private'}})).error.code,-32602);
+});
+
+async function widgetFixture(preview, callTool) {
+  const elements=new Map();const listeners={};const sent=[];
+  function element(id){if(!elements.has(id))elements.set(id,{textContent:'',className:'',hidden:false,
+    disabled:false,classList:{toggle(){}},focus(){},style:{setProperty(){}}});return elements.get(id);}
+  const form=element('edit-form');form.elements=[];form.elements.namedItem=()=>({focus(){}});form.reportValidity=()=>true;
+  const parent={postMessage(message){sent.push(message);queueMicrotask(async()=>{
+    let result;
+    if(message.method==='ui/initialize')result={hostCapabilities:{serverTools:{}},hostContext:{theme:'light'}};
+    else if(message.method==='ui/notifications/initialized'){
+      listeners.message({source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{structuredContent:preview}}});return;
+    } else if(message.method==='tools/call') result=await callTool(message.params);
+    else if(message.id!==undefined)result={};
+    else return;
+    listeners.message({source:parent,data:{jsonrpc:'2.0',id:message.id,result}});
+  });}};
+  const window={parent,addEventListener:(name,fn)=>listeners[name]=fn};
+  const context=vm.createContext({window,document:{getElementById:element,body:{},documentElement:{style:{setProperty(){}},scrollWidth:400,scrollHeight:600}},
+    ResizeObserver:class{constructor(fn){this.fn=fn;}observe(){this.fn();}},
+    setTimeout,clearTimeout,Intl,Date,Map,Promise,queueMicrotask});
+  const js=widgetHtml.match(/<script>([\s\S]*?)<\/script>/)[1];
+  vm.runInContext(js,context);
+  await new Promise(resolve=>setImmediate(resolve));
+  return {elements,sent,listeners,parent};
+}
+
+test('widget publishes only on user action, shows receipt and disables duplicate submission',async()=>{
+  const {state,context}=fixture();
+  const widget=await widgetFixture({ready:true,preview:input,request_id:input.request_id},async params=>(await dispatch({jsonrpc:'2.0',id:10,method:'tools/call',params},async d=>context[d.action](d))).result);
+  assert.equal(state.writes,0);assert.equal(widget.sent[0].method,'ui/initialize');
+  assert.equal(widget.elements.get('publish').textContent,'Publier mon voyage');
+  await widget.elements.get('publish').onclick();assert.equal(state.rows.length,2);
+  assert.match(widget.elements.get('message').textContent,/Votre voyage est enregistré/);
+  assert.equal(widget.elements.get('publish').hidden,true);
+  await widget.elements.get('publish').onclick();assert.equal(state.rows.length,2);
+});
+
+test('widget keeps an uncertain submission locked until status verification',async()=>{
+  let calls=0;
+  const widget=await widgetFixture({ready:true,preview:input,request_id:input.request_id},async params=>{
+    calls++;return {structuredContent:params.name==='publish_departure'?{saved:false,outcome:'unknown',request_id:input.request_id}:{saved:false,found:false,request_id:input.request_id}};
+  });
+  await widget.elements.get('publish').onclick();assert.equal(widget.elements.get('check').hidden,false);
+  assert.equal(widget.elements.get('publish').hidden,true);assert.equal(widget.elements.get('edit').disabled,true);
+  await widget.elements.get('check').onclick();assert.equal(widget.elements.get('publish').hidden,false);
+  assert.equal(widget.elements.get('publish').textContent,'Réessayer');assert.equal(calls,2);
 });
