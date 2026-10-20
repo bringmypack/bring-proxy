@@ -86,7 +86,7 @@
     "timeout_seconds": 180,
     "schedule_enabled": false,
     "cloud_import_enabled": false,
-    "blocker": "Scoped read token and Drive OCR authorization pending; worker prepared but inactive.",
+    "blocker": "Google owner OAuth consent fails with multi-account redirect to script.google.com/accounts. Read-only Apify key stored in Script Properties. Trigger and OCR not yet authorized or tested; schedule remains disabled.",
     "trial_results": [
       {
         "groups": 1,
@@ -98,6 +98,13 @@
         "posts": 25,
         "credit_usd": 0.126
       }
-    ]
+    ],
+    "credential_configured": true,
+    "setup_authorized_at": "2026-10-20",
+    "schedule_time": "09:00",
+    "schedule_timezone": "Europe/Paris",
+    "credit_period_start": "2026-10-20",
+    "credit_period_end": "2026-11-19",
+    "next_credit_date": "2026-11-20"
   }
 }
