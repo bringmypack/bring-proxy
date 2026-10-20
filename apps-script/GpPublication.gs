@@ -4,7 +4,8 @@ var GP_PUBLICATION_SHEET = 'GP_TRANSPORTEURS';
 
 function publicationCapabilities() {
   var book = SpreadsheetApp.openById(GP_PUBLICATION_SPREADSHEET);
-  return { success: true, version: '1.0.0', spreadsheet_id: book.getId(),
+  return { success: true, version: '1.1.0', spreadsheet_id: book.getId(),
+    sheet: GP_PUBLICATION_SHEET, search: true,
     write_requests: !!book.getSheetByName(GP_PUBLICATION_SHEET), payments: false };
 }
 
@@ -150,4 +151,52 @@ function getPublicationStatus(data) {
       return gpPublicationReceipt(book, sheet, headers, rows[i], i + 1, true);
   }
   return { success: true, found: false, request_id: data.request_id };
+}
+
+function gpCatalogDate(value) {
+  if (value && typeof value.getTime === 'function') {
+    return isNaN(value.getTime()) ? null : Utilities.formatDate(value, 'Europe/Paris', 'yyyy-MM-dd');
+  }
+  var text = String(value == null ? '' : value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  var date = new Date(text + 'T12:00:00Z');
+  return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text ? text : null;
+}
+
+// One read-only public projection of the same sheet used by publishGP.
+// Historical private rows are not published by this migration. New Chat-GP
+// announcements are eligible only after the publication pipeline saved them.
+function readPublicCatalog() {
+  var book = SpreadsheetApp.openById(GP_PUBLICATION_SPREADSHEET);
+  var sheet = book.getSheetByName(GP_PUBLICATION_SHEET);
+  if (!sheet) return { success: false, error: 'CATALOG_SHEET_MISSING' };
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0].map(function(cell) { return String(cell).trim(); });
+  var required = ['gp_id','nom','ville_depart','ville_arrivee','date_depart','statut','source'];
+  if (required.some(function(key) { return headers.indexOf(key) < 0; }) ||
+      headers.some(function(key, i) { return key && headers.indexOf(key) !== i; }))
+    return { success: false, error: 'CATALOG_HEADERS_INVALID' };
+  var records = [];
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    var cell = function(key) { var n = headers.indexOf(key); return n < 0 ? '' : row[n]; };
+    var id = String(cell('gp_id'));
+    var source = String(cell('source'));
+    var facebook = /^FB_/.test(id) && /^https:\/\/www\.facebook\.com\/groups\/[^/]+\/(?:permalink|posts)\/\d+\/$/.test(source);
+    var direct = /^GP_/.test(id) && source === 'Chat-GP' && /^[a-zA-Z0-9_-]{16,100}$/.test(String(cell('publication_request_id')));
+    var status = String(cell('statut'));
+    if ((!facebook && !direct) || ['ACTIF','A_VERIFIER'].indexOf(status) < 0) continue;
+    var date = gpCatalogDate(cell('date_depart'));
+    if (!date) continue;
+    var numeric = function(key) { var value = cell(key); return typeof value === 'number' && isFinite(value) ? value : null; };
+    records.push({ id: id, operator: String(cell('nom')), origin: String(cell('ville_depart')),
+      destination: String(cell('ville_arrivee')), departure_date_estimated: date,
+      price_per_kg: numeric('prix_kg'), status: status, source_url: facebook ? source : null,
+      source_type: facebook ? 'facebook' : 'bringmypack',
+      date_as_posted: facebook ? String(cell('date_source')) : date,
+      currency: /^[A-Z]{3}$/.test(String(cell('devise'))) ? String(cell('devise')) : null,
+      capacity_kg: numeric('capacite_kg'), accepted_items: String(cell('objets_acceptes')) || null,
+      price_terms: String(cell('tarif_texte')) || null, availability_confirmed: false });
+  }
+  return { success: true, spreadsheet_id: book.getId(), sheet: sheet.getName(), records: records };
 }

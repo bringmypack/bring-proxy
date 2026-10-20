@@ -6,12 +6,11 @@ import {decode, isoDate, searchCatalog, sourceUrl} from '../lib/catalog.js';
 
 const now = new Date('2026-10-20T08:00:00Z');
 const source = 'https://www.facebook.com/groups/gpfrancesenegal/permalink/2337267237026310/';
-const makeRow = (id, origin, destination, date, url = source) => ({c:
-  [id,'Public operator',origin,destination,date,null,'ACTIF',url,'Annonce Facebook','26 octobre; année à confirmer',null].map(v => v === null ? null : {v})});
+const makeRow = (id, origin, destination, date, url = source) => ({id,operator:'Public operator',origin,destination,departure_date_estimated:date.replace(/Date\((\d+),(\d+),(\d+)\)/,(_,y,m,d)=>y+'-'+String(Number(m)+1).padStart(2,'0')+'-'+d.padStart(2,'0')),price_per_kg:null,status:'ACTIF',source_url:url,source_type:'facebook',date_as_posted:'26 octobre; année à confirmer',currency:null,capacity_kg:null});
 const rows = [makeRow('FB_paris', 'Paris', 'Dakar', 'Date(2026,9,26)'),
   makeRow('FB_inverse', 'Dakar', 'Paris', 'Date(2026,9,28)'),
   makeRow('FB_expired', 'Paris', 'Dakar', 'Date(2026,9,19)')];
-const wrap = rows => `/*O_o*/\ngoogle.visualization.Query.setResponse(${JSON.stringify({status:'ok', table:{rows}})});`;
+const wrap = records => JSON.stringify({success:true,spreadsheet_id:'1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE',sheet:'GP_TRANSPORTEURS',records});
 const fetcher = async url => {assert.equal(url, sourceUrl); return {ok:true,text:async () => wrap(rows)};};
 const call = (name, args = {}) => ({jsonrpc:'2.0', id:1, method:'tools/call', params:{name, arguments:args}});
 
@@ -20,9 +19,11 @@ test('restored route keeps both catalogue and publication endpoints', async () =
   assert.deepEqual(config.rewrites.find(row => row.source === '/mcp'), {source:'/mcp',destination:'/api/catalogue'});
   assert.ok(config.functions['api/mcp.js']);
   assert.ok(config.functions['api/catalogue.js']);
-  const query = new URL(sourceUrl).searchParams.get('tq');
-  assert.equal(query, "select A,C,E,H,K,M,N,P,U,X,Y where A starts with 'FB_' limit 1000");
-  assert.equal(query.includes(',D,'), false); // no WhatsApp column
+  const {SCRIPT_URL, SPREADSHEET_ID} = await import('../lib/config.js');
+  const publisher = await import('../api/mcp.js');
+  assert.equal(sourceUrl,SCRIPT_URL);
+  assert.equal(publisher.SPREADSHEET_ID,SPREADSHEET_ID);
+  assert.equal(SPREADSHEET_ID,'1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE');
 });
 
 test('Paris–Dakar flexible dates return the public post, with unknown capacity and price', async () => {
@@ -49,7 +50,7 @@ test('private rows, unsafe links and inactive announcements cannot leave the rea
   const privateRow = makeRow('GP_private','Paris','Dakar','Date(2026,9,26)');
   const unsafe = makeRow('FB_unsafe','Paris','Dakar','Date(2026,9,26)','https://example.com');
   const inactive = makeRow('FB_inactive','Paris','Dakar','Date(2026,9,26)');
-  inactive.c[6].v = 'EXPIRE';
+  inactive.status = 'EXPIRE';
   assert.deepEqual(decode(wrap([privateRow,unsafe,inactive])),[]);
   assert.equal(isoDate('2026-02-30'),null);
   assert.equal(isoDate('Date(2026,12,26)'),null);

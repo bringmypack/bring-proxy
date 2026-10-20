@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "author": {
+    "name": "GPT Creator"
+  },
+  "description": "Trouvez des annonces de voyageurs entre la France et le Sénégal et préparez votre envoi dans le chat.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "capabilities": [
+          "skills"
+        ],
+        "category": "Other",
+        "composerIcon": "./assets/bringmypack-icon.png",
+        "defaultPrompt": [
+          "📦 Envoyer un colis",
+          "✈️ Transporter un colis (Je suis GP)"
+        ],
+        "developerName": "GPT Creator",
+        "displayName": "Chat-GP",
+        "logo": "./assets/bringmypack-icon.png",
+        "longDescription": "Trouvez des annonces de voyageurs entre la France et le Sénégal et préparez votre envoi dans le chat.",
+        "shortDescription": "Colis France ↔ Sénégal"
+      },
+      "apps": "./.app.json"
+    }
+  },
+  "name": "gpt-7a0bfea81ec9cacdb966a650d57a6961",
+  "version": "0.72.0"
+}

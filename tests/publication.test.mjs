@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import handler, { dispatch, SPREADSHEET_ID } from '../api/mcp.js';
 import { widgetHtml } from '../lib/travel-card.js';
+import { dispatch as searchDispatch } from '../api/catalogue.js';
 
 const script = await readFile(new URL('../apps-script/GpPublication.gs', import.meta.url),'utf8');
 const baseHeaders = ['gp_id','role','nom','whatsapp','ville_depart','lat_depart','lng_depart',
@@ -199,4 +200,49 @@ test('widget keeps an uncertain submission locked until status verification',asy
   assert.equal(widget.elements.get('publish').hidden,true);assert.equal(widget.elements.get('edit').disabled,true);
   await widget.elements.get('check').onclick();assert.equal(widget.elements.get('publish').hidden,false);
   assert.equal(widget.elements.get('publish').textContent,'Réessayer');assert.equal(calls,2);
+});
+
+test('a saved GP trip becomes searchable in the same sheet without exposing contacts or history',async()=>{
+  const {state,context}=fixture();
+  const privateRecord=baseHeaders.map(key=>({gp_id:'GP_private_history',nom:'Private historical name',
+    ville_depart:'Paris',ville_arrivee:'Dakar',date_depart:'2026-10-31',statut:'ACTIF',source:'Chat-GP',
+    whatsapp:'+33699999999'})[key]??'');
+  state.rows.push(privateRecord);
+  const saved=await dispatch({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'publish_departure',arguments:input}},async d=>context[d.action](d));
+  assert.equal(saved.result.structuredContent.saved,true);
+  const fetchImpl=async (url,options)=>{
+    assert.equal(JSON.parse(options.body).action,'readPublicCatalog');
+    return {ok:true,text:async()=>JSON.stringify(context.readPublicCatalog())};
+  };
+  const found=await searchDispatch({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'search_departures',
+    arguments:{origin:'Paris',destination:'Dakar',date_from:'2026-10-20'}}},fetchImpl,new Date('2026-10-20T08:00:00Z'));
+  const result=found.result.structuredContent;
+  assert.equal(result.total,1);
+  assert.equal(result.results[0].id,saved.result.structuredContent.id);
+  assert.equal(result.results[0].capacity_kg,13);
+  assert.equal(result.results[0].accepted_items,input.objets_acceptes);
+  assert.equal(result.results[0].price_terms,'À convenir');
+  assert.equal(result.results[0].source_url,null);
+  assert.equal(result.results[0].source_type,'bringmypack');
+  const text=JSON.stringify(result);
+  for(const secret of [input.telephone,input.request_id,'Private historical name','GP_private_history',SPREADSHEET_ID,'publication_fingerprint']) assert.equal(text.includes(secret),false);
+  const wrongHeader=fixture(baseHeaders.filter(h=>h!=='source'));
+  assert.equal(wrongHeader.context.readPublicCatalog().success,false);
+});
+
+test('migration retains original IDs, maps columns and never copies private historical rows',async()=>{
+  const {context}=fixture();
+  vm.runInContext(await readFile(new URL('../apps-script/CatalogMigration.gs',import.meta.url),'utf8'),context);
+  const headers=['gp_id','nom','ville_depart','ville_arrivee','date_depart','statut','source','whatsapp'];
+  const row=['FB_imported','Public Operator','Paris','Dakar','2026-10-26','ACTIF',
+    'https://www.facebook.com/groups/gpfrancesenegal/permalink/2337267237026310/','+33612345678'];
+  const privateRow=[...row];privateRow[0]='GP_private_history';
+  const plan=context.gpCatalogMigrationPlan([...headers].reverse(),[],headers,[row,privateRow,row]);
+  assert.equal(plan.rows.length,1);
+  assert.equal(plan.rows[0][plan.headers.indexOf('gp_id')],'FB_imported');
+  assert.equal(plan.rows[0][plan.headers.indexOf('whatsapp')],'+33612345678');
+  assert.ok(plan.headers.includes('publication_request_id'));
+  const retry=context.gpCatalogMigrationPlan(plan.headers,plan.rows,headers,[row]);
+  assert.equal(retry.rows.length,0);
+  assert.throws(()=>context.gpCatalogMigrationPlan(['gp_id'],[],headers,[row]),/MIGRATION_HEADERS_INVALID/);
 });
