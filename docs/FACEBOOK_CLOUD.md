@@ -64,10 +64,14 @@ Après accord: configurer BMP_APIFY_READ_TOKEN et BMP_APIFY_TASK_ID dans Script 
 
 Les nouvelles feuilles FB_QUEUE et FB_OCR_CACHE seront créées au premier traitement autorisé. Le worker ne démarre aucun run Apify et ne peut donc pas augmenter la fréquence ou activer un plan payant. Le blocage du crédit Free reste le plafond final.
 
-## Stato del consenso Google (20 ottobre 2026)
+## Stato verificato (20 ottobre 2026, 15:27 Europe/Paris)
 
-La verifica conferma token e task presenti, worker disattivato. installFacebookCloudTrigger non è riuscita: manca il consenso script.scriptapp. Nessun attivatore creato; nessun OCR o import automatico ancora verificato. La pianificazione Apify resta disattivata.
+Consenso del proprietario Google completo: authorizeFacebookCloud restituisce NOT_REQUIRED. Il trigger orario è installato. Il worker è stato messo in pausa dopo la diagnosi, per evitare tentativi ripetuti senza il permesso Apify mancante. La pianificazione Apify delle 09:00 resta disattivata.
 
-Per riprendere, aprire questo stesso progetto in un profilo Chrome con il solo account bringmypack@gmail.com connesso. Eseguire authorizeFacebookCloud: lo stato REQUIRED indica consensi mancanti e produce il collegamento ufficiale del progetto. Completare il consenso del proprietario; poi testare OCR/import e deduplica prima di attivare la pianificazione delle 09:00 Europe/Paris. Non concedere accesso all’account personale predefinito, non esportare cookie e non revocare le connessioni esistenti.
+Prova OCR su una locandina pubblica reale riuscita: 197 caratteri redatti salvati in FB_OCR_CACHE. Seconda lettura con cached=true, senza un altro OCR. Il documento OCR temporaneo è spostato nel cestino dal worker. La prova non certifica l’accuratezza di tutte le locandine. Il codice temporaneo e l’URL dell’immagine di prova sono stati rimossi dal progetto.
 
-Credito Free verificato: periodo 20 ottobre–19 novembre 2026 UTC; prossimo rinnovo 20 novembre. Il credito non usato scade e non si accumula. Il piano Free si ferma al limite; nessun upgrade a pagamento attivato.
+Diagnosi Apify: la chiave legge l’ultima esecuzione della sola task (HTTP 200), ma la lettura del dataset restituisce HTTP 403 insufficient-permissions. testFacebookCloudConnection controlla separatamente i due stadi senza registrare token o post. Serve correggere il permesso di lettura dei default run storages nell’account Apify esistente. Non creare un secondo account né ampliare il token a Full access, Run o Write. Verificare le autorizzazioni effettive dopo la modifica.
+
+Dopo la correzione: testFacebookCloudConnection deve restituire HTTP 200 per entrambi gli stadi. Riabilitare il worker con installFacebookCloudTrigger, eseguire syncFacebookCloud e verificare FB_QUEUE, FB_REVIEW, FB_RUNS e le ricevute nel catalogo. Ripetere il batch per controllare i doppioni; poi abilitare la pianificazione Apify delle 09:00 Europe/Paris e sospendere il vecchio report ChatGPT.
+
+Credito Free verificato: periodo 20 ottobre–19 novembre 2026 UTC; prossimo rinnovo 20 novembre. Il credito non usato scade e non si accumula. Nessun piano a pagamento attivato.

@@ -86,7 +86,7 @@
     "timeout_seconds": 180,
     "schedule_enabled": false,
     "cloud_import_enabled": false,
-    "blocker": "Google owner OAuth consent fails with multi-account redirect to script.google.com/accounts. Read-only Apify key stored in Script Properties. Trigger and OCR not yet authorized or tested; schedule remains disabled.",
+    "blocker": "Apify task run read returns 200, dataset read returns 403 insufficient-permissions. Owner Google consent and real OCR/cache verified. Worker paused until default run dataset read permission is corrected in the existing Apify account.",
     "trial_results": [
       {
         "groups": 1,
@@ -105,6 +105,10 @@
     "schedule_timezone": "Europe/Paris",
     "credit_period_start": "2026-10-20",
     "credit_period_end": "2026-11-19",
-    "next_credit_date": "2026-11-20"
+    "next_credit_date": "2026-11-20",
+    "google_owner_authorized": true,
+    "google_ocr_verified": true,
+    "google_ocr_cache_verified": true,
+    "google_trigger_installed": true
   }
 }
