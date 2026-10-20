@@ -183,6 +183,7 @@ function readPublicCatalog() {
     var id = String(cell('gp_id'));
     var source = String(cell('source'));
     var facebook = /^FB_/.test(id) && /^https:\/\/www\.facebook\.com\/groups\/[^/]+\/(?:permalink|posts)\/\d+\/$/.test(source);
+    if(facebook && /^https:\/\/www\.facebook\.com\/groups\/226193057954981\//.test(source)) continue;
     var direct = /^GP_/.test(id) && source === 'Chat-GP' && /^[a-zA-Z0-9_-]{16,100}$/.test(String(cell('publication_request_id')));
     var status = String(cell('statut'));
     if ((!facebook && !direct) || ['ACTIF','A_VERIFIER'].indexOf(status) < 0) continue;
@@ -196,7 +197,16 @@ function readPublicCatalog() {
       date_as_posted: facebook ? String(cell('date_source')) : date,
       currency: /^[A-Z]{3}$/.test(String(cell('devise'))) ? String(cell('devise')) : null,
       capacity_kg: numeric('capacite_kg'), accepted_items: String(cell('objets_acceptes')) || null,
-      price_terms: String(cell('tarif_texte')) || null, availability_confirmed: false });
+      price_terms: String(cell('tarif_texte')) || null,
+      origin_place: facebook ? String(cell('lieu_depart_texte')) || null : null,
+      destination_place: facebook ? String(cell('lieu_arrivee_texte')) || null : null,
+      origin_neighborhood: facebook ? String(cell('quartier_depart')) || null : null,
+      destination_neighborhood: facebook ? String(cell('quartier_arrivee')) || null : null,
+      origin_gps_precision: facebook ? String(cell('precision_gps_depart')) || null : null,
+      destination_gps_precision: facebook ? String(cell('precision_gps_arrivee')) || null : null,
+      origin_geocode: facebook ? String(cell('geocodage_depart')) || null : null,
+      destination_geocode: facebook ? String(cell('geocodage_arrivee')) || null : null,
+      availability_confirmed: false });
   }
   return { success: true, spreadsheet_id: book.getId(), sheet: sheet.getName(), records: records };
 }

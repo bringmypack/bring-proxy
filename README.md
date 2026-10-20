@@ -66,7 +66,9 @@ già completata; l'archivio originale è rimasto invariato.
 
 ## Raccolta Facebook e pagamento dopo consegna
 
-- [Stato della raccolta cloud](docs/FACEBOOK_CLOUD.md): sei gruppi, il gruppo di Fabio sempre per primo; ricerca pubblica quotidiana riattivata. Importazione nel foglio bloccata dai permessi Google correnti.
+- [Stato della raccolta cloud](docs/FACEBOOK_CLOUD.md): sei gruppi, il gruppo di Fabio sempre per primo; ricerca pubblica quotidiana riattivata. Importazione manuale verificata tramite Apps Script; import automatico cloud ancora da collegare.
 - [Elenco unico delle fonti](config/facebook-sources.json).
-- [Candidati da verificare](data/facebook-review-2026-10-20.json): nessun annuncio nuovo importato.
+- [Candidati da verificare](data/facebook-review-2026-10-20.json): estratti iniziali, separati dal batch originale verificato.
 - [Pagamento dopo consegna](docs/PAYMENTS.md): prototipo solo test; nessun incasso o trasferimento reale.
+
+Aggiornamento 20 ottobre: tre annunci originali salvati nelle righe 22–24; schede FB_SOURCES, FB_REVIEW e FB_RUNS create. Quartieri e GPS con precisione esplicita; Chat-GP 0.73.0 propone date flessibili. La ricerca per località non calcola ancora distanze.
