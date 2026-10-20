@@ -63,3 +63,10 @@ stesso ID, duplicati, filtri e isolamento dei contatti. Nessun viaggio fittizio
 CatalogMigration.gs serve alla migrazione e alla guida GESTIONE: non è esposto
 via HTTP e non va eseguito per ogni pubblicazione. La migrazione iniziale è
 già completata; l'archivio originale è rimasto invariato.
+
+## Raccolta Facebook e pagamento dopo consegna
+
+- [Stato della raccolta cloud](docs/FACEBOOK_CLOUD.md): sei gruppi, il gruppo di Fabio sempre per primo; ricerca pubblica quotidiana riattivata. Importazione nel foglio bloccata dai permessi Google correnti.
+- [Elenco unico delle fonti](config/facebook-sources.json).
+- [Candidati da verificare](data/facebook-review-2026-10-20.json): nessun annuncio nuovo importato.
+- [Pagamento dopo consegna](docs/PAYMENTS.md): prototipo solo test; nessun incasso o trasferimento reale.

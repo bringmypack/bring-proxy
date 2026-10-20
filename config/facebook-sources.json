@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-20",
+  "priority_rule": "User's group is always searched first. Other groups follow the supplied order.",
+  "collection_mode": "public_web_search",
+  "full_feed_access": false,
+  "sheet_import_enabled": false,
+  "sheet_import_blocker": "Google Drive connector returns 403 on writes; restore owner/editor connection first.",
+  "sources": [
+    {
+      "priority": 1,
+      "id": "gpfrancesenegal",
+      "url": "https://www.facebook.com/groups/gpfrancesenegal/",
+      "label": "Transport de colis France–Sénégal",
+      "label_verified": true,
+      "enabled": true
+    },
+    {
+      "priority": 2,
+      "id": "1430214083851753",
+      "url": "https://www.facebook.com/groups/1430214083851753/",
+      "label": "Groupe 1430214083851753",
+      "label_verified": false,
+      "enabled": true
+    },
+    {
+      "priority": 3,
+      "id": "707572670955137",
+      "url": "https://www.facebook.com/groups/707572670955137/",
+      "label": "Groupe 707572670955137",
+      "label_verified": false,
+      "enabled": true
+    },
+    {
+      "priority": 4,
+      "id": "2109180682722375",
+      "url": "https://www.facebook.com/groups/2109180682722375/",
+      "label": "Groupe 2109180682722375",
+      "label_verified": false,
+      "enabled": true
+    },
+    {
+      "priority": 5,
+      "id": "320004609170313",
+      "url": "https://www.facebook.com/groups/320004609170313/",
+      "label": "Groupe 320004609170313",
+      "label_verified": false,
+      "enabled": true
+    },
+    {
+      "priority": 6,
+      "id": "226193057954981",
+      "url": "https://www.facebook.com/groups/226193057954981/",
+      "label": "Gp France Dakar",
+      "label_verified": true,
+      "enabled": true
+    }
+  ],
+  "automation": {
+    "enabled": true,
+    "cadence": "daily morning, around 09:00 Europe/Paris",
+    "output": "report of public indexed posts; no Google Sheet writes",
+    "immediate_run": "requested 2026-10-20; asynchronous completion not yet verified"
+  }
+}
