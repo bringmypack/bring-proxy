@@ -1,0 +1,87 @@
+{
+  "checked_on": "2026-10-20",
+  "coverage": "Search performed for all six specified groups; public index only, not exhaustive feeds.",
+  "catalogue_rows_written": 0,
+  "candidates": [
+    {
+      "group_id": "320004609170313",
+      "post_id": "1879258479911577",
+      "operator": "Mme Diaw GP la Confiance",
+      "origin": "Paris",
+      "destination": "Dakar",
+      "departure_date": "2026-10-21",
+      "price_per_kg": 10,
+      "currency": "EUR",
+      "reason": "Search snippet suggests a future trip; source post and date association need verification.",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1879258479911577/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    },
+    {
+      "group_id": "320004609170313",
+      "post_id": "1867448747759217",
+      "operator": "Niany GP Travel International",
+      "origin": "Lyon",
+      "destination": "Dakar",
+      "departure_date": "2026-10-23",
+      "reason": "Future date appears in indexed image text; original source not accessible.",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1867448747759217/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    },
+    {
+      "group_id": "320004609170313",
+      "post_id": "1874773740360051",
+      "operator": "Niany GP Travel International",
+      "origin": "Lyon",
+      "destination": "Dakar",
+      "departure_date": "2026-10-23",
+      "reason": "Possible cross-post of the same trip; do not count twice.",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1874773740360051/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    },
+    {
+      "group_id": "707572670955137",
+      "post_id": "1413640327015031",
+      "operator": null,
+      "origin": "Dakar",
+      "destination": "Paris",
+      "departure_date": "2026-10-20",
+      "reason": "Same-day departure; source verification and operator identification missing.",
+      "source_url": "https://www.facebook.com/groups/707572670955137/posts/1413640327015031/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    },
+    {
+      "group_id": "320004609170313",
+      "post_id": "1878204036683688",
+      "operator": null,
+      "origin": "Dakar",
+      "destination": "Paris",
+      "departure_date": "2026-10-20",
+      "reason": "Possible cross-post of same-day trip; not confirmed.",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1878204036683688/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    },
+    {
+      "group_id": "1430214083851753",
+      "post_id": "2484880435051774",
+      "operator": "Symantec GP",
+      "origin": null,
+      "destination": null,
+      "departure_date": null,
+      "reason": "Indexed result mentions 31 October / 5 November but mixes unrelated 2026 text. Year and trip unverified.",
+      "source_url": "https://www.facebook.com/groups/1430214083851753/posts/2484880435051774/",
+      "source_verified": false,
+      "review_status": "SOURCE_REQUIRED",
+      "availability_confirmed": false
+    }
+  ]
+}
