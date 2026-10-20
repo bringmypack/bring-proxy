@@ -1,0 +1,235 @@
+{
+  "reviewed_at": "2026-10-20",
+  "scope": "Visible recent posts in six groups, not an exhaustive history. Private group contents excluded.",
+  "records": [
+    {
+      "group_id": "gpfrancesenegal",
+      "post_id": "2338325456920488",
+      "source_url": "https://www.facebook.com/groups/gpfrancesenegal/permalink/2338325456920488/",
+      "source_verified": true,
+      "year_verified": true,
+      "kind": "traveller_offer",
+      "operator": "Alioune Sylla",
+      "origin": "Paris",
+      "destination": "Dakar",
+      "origin_country": "FR",
+      "destination_country": "SN",
+      "departure_date": "2026-10-21",
+      "date_as_posted": "Demain mercredi 21 octobre 2026. Original public consulté le 20 octobre 2026.",
+      "origin_place": {
+        "source_verified": true,
+        "text": "Paris, France",
+        "neighborhood": "",
+        "query": "Paris, France",
+        "country": "FR",
+        "precision": "ville_approx",
+        "match_tokens": [
+          "paris"
+        ]
+      },
+      "destination_place": {
+        "source_verified": true,
+        "text": "Dakar, Sénégal",
+        "neighborhood": "",
+        "query": "Dakar, Sénégal",
+        "country": "SN",
+        "precision": "ville_approx",
+        "match_tokens": [
+          "dakar"
+        ]
+      }
+    },
+    {
+      "group_id": "320004609170313",
+      "post_id": "1879258479911577",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1879258479911577/",
+      "source_verified": true,
+      "year_verified": true,
+      "kind": "traveller_offer",
+      "operator": "Mme Diaw — GP la Confiance",
+      "origin": "Paris",
+      "destination": "Dakar",
+      "origin_country": "FR",
+      "destination_country": "SN",
+      "departure_date": "2026-10-21",
+      "date_as_posted": "Mercredi 21 octobre 2026, année explicite sur la locandine.",
+      "price_per_kg": 10,
+      "currency": "EUR",
+      "origin_place": {
+        "source_verified": true,
+        "text": "Vitry-sur-Seine, France",
+        "neighborhood": "",
+        "query": "Vitry-sur-Seine, France",
+        "country": "FR",
+        "precision": "commune_approx",
+        "match_tokens": [
+          "vitry"
+        ]
+      },
+      "destination_place": {
+        "source_verified": true,
+        "text": "Parcelles Assainies unité 25, Dakar, Sénégal",
+        "neighborhood": "Parcelles Assainies — unité 25",
+        "query": "Parcelles Assainies unité 25, Dakar, Sénégal",
+        "country": "SN",
+        "precision": "quartier_approx",
+        "match_tokens": [
+          "parcelles",
+          "25"
+        ],
+        "approximate_parent": {
+          "query": "Parcelles Assainies, Dakar, Sénégal",
+          "match_tokens": [
+            "parcelles"
+          ],
+          "precision": "quartier_approx",
+          "note": "Centre du quartier Parcelles Assainies uniquement; unité 25 non localisée précisément."
+        }
+      }
+    },
+    {
+      "group_id": "320004609170313",
+      "post_id": "1867448747759217",
+      "source_url": "https://www.facebook.com/groups/320004609170313/posts/1867448747759217/",
+      "source_verified": true,
+      "year_verified": true,
+      "kind": "traveller_offer",
+      "operator": "Niany GP Travel International",
+      "origin": "Lyon",
+      "destination": "Dakar",
+      "origin_country": "FR",
+      "destination_country": "SN",
+      "departure_date": "2026-10-23",
+      "date_as_posted": "23 octobre 2026, année explicite sur la locandine.",
+      "price_terms": "Dernier dépôt le 22 octobre 2026.",
+      "origin_place": {
+        "source_verified": true,
+        "text": "Lyon, France",
+        "neighborhood": "",
+        "query": "Lyon, France",
+        "country": "FR",
+        "precision": "ville_approx",
+        "match_tokens": [
+          "lyon"
+        ]
+      },
+      "destination_place": {
+        "source_verified": true,
+        "text": "Dakar, Sénégal",
+        "neighborhood": "",
+        "query": "Dakar, Sénégal",
+        "country": "SN",
+        "precision": "ville_approx",
+        "match_tokens": [
+          "dakar"
+        ]
+      }
+    },
+    {
+      "group_id": "gpfrancesenegal",
+      "post_id": "2338289653590735",
+      "source_url": "https://www.facebook.com/groups/gpfrancesenegal/permalink/2338289653590735/",
+      "source_verified": true,
+      "year_verified": false,
+      "kind": "traveller_offer",
+      "operator": "Adji GP",
+      "origin": "Dakar",
+      "destination": "Paris",
+      "origin_country": "SN",
+      "destination_country": "FR",
+      "departure_date": "2026-10-21",
+      "date_as_posted": "Affiche: mercredi 21 octobre, sans année. Légende: après-demain, publiée le 20 octobre 2026. Contradiction à clarifier.",
+      "date_conflict": true,
+      "origin_place": {
+        "source_verified": true,
+        "text": "Ouakam; Parcelles Case Bi, Dakar, Sénégal",
+        "neighborhood": "Ouakam; Parcelles Case Bi",
+        "query": "Ouakam; Parcelles Case Bi, Dakar, Sénégal",
+        "country": "SN",
+        "precision": "quartier_approx",
+        "match_tokens": []
+      },
+      "destination_place": {
+        "source_verified": true,
+        "text": "6 rue Affre, 75018 Paris, France",
+        "neighborhood": "Paris 18e",
+        "query": "6 rue Affre, 75018 Paris, France",
+        "country": "FR",
+        "precision": "adresse",
+        "match_tokens": [
+          "affre",
+          "6"
+        ]
+      }
+    },
+    {
+      "group_id": "gpfrancesenegal",
+      "post_id": "2338297733589927",
+      "source_url": "https://www.facebook.com/groups/gpfrancesenegal/permalink/2338297733589927/",
+      "source_verified": true,
+      "year_verified": false,
+      "kind": "traveller_offer",
+      "operator": "Sen GP Agency",
+      "origin": "Dakar",
+      "destination": "Paris",
+      "origin_country": "SN",
+      "destination_country": "FR",
+      "departure_date": "2026-10-20",
+      "date_as_posted": "20/10 sans année sur la locandine. Départ imminent; publication consultée le 20 octobre 2026.",
+      "price_per_kg": 10,
+      "currency": "EUR",
+      "origin_place": {
+        "source_verified": true,
+        "text": "Soprim près de la banque BOA, Dakar, Sénégal",
+        "neighborhood": "Soprim",
+        "query": "Soprim près de la banque BOA, Dakar, Sénégal",
+        "country": "SN",
+        "precision": "quartier_approx",
+        "match_tokens": [
+          "soprim"
+        ]
+      },
+      "destination_place": {
+        "source_verified": true,
+        "text": "Paris 18e, France",
+        "neighborhood": "Paris 18e",
+        "query": "Paris 18e, France",
+        "country": "FR",
+        "precision": "quartier_approx",
+        "match_tokens": [
+          "18"
+        ]
+      }
+    },
+    {
+      "group_id": "1430214083851753",
+      "post_id": "3160016474204830",
+      "source_url": "https://www.facebook.com/groups/1430214083851753/posts/3160016474204830/",
+      "source_verified": true,
+      "year_verified": false,
+      "kind": "traveller_offer",
+      "operator": "Symantec GP Transports",
+      "origin": "Dakar",
+      "destination": "Paris",
+      "origin_country": "SN",
+      "destination_country": "FR",
+      "departure_date": "2026-10-22",
+      "date_as_posted": "22 octobre Dakar–Paris / 27 octobre Paris–Dakar. Année absente du texte original; à confirmer."
+    },
+    {
+      "group_id": "1430214083851753",
+      "post_id": "3160016474204830",
+      "source_url": "https://www.facebook.com/groups/1430214083851753/posts/3160016474204830/",
+      "source_verified": true,
+      "year_verified": false,
+      "kind": "traveller_offer",
+      "operator": "Symantec GP Transports",
+      "origin": "Paris",
+      "destination": "Dakar",
+      "origin_country": "FR",
+      "destination_country": "SN",
+      "departure_date": "2026-10-27",
+      "date_as_posted": "22 octobre Dakar–Paris / 27 octobre Paris–Dakar. Année absente du texte original; à confirmer."
+    }
+  ]
+}

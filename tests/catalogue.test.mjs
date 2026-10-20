@@ -14,6 +14,15 @@ const wrap = records => JSON.stringify({success:true,spreadsheet_id:'1KJL7mAtWvr
 const fetcher = async url => {assert.equal(url, sourceUrl); return {ok:true,text:async () => wrap(rows)};};
 const call = (name, args = {}) => ({jsonrpc:'2.0', id:1, method:'tools/call', params:{name, arguments:args}});
 
+test('Public neighborhoods are searchable; city centers never imply an exact meeting point',()=>{
+ const row={...makeRow('FB_local','Paris','Dakar','2026-10-21'),origin_place:'Vitry-sur-Seine, France',destination_place:'Parcelles Assainies unité 25, Dakar, Sénégal',destination_neighborhood:'Parcelles Assainies — unité 25',origin_gps_precision:'commune_approx',destination_gps_precision:'quartier_approx',destination_geocode:'Centre du quartier uniquement; unité 25 non localisée précisément.'};
+ const decoded=decode(wrap([row]));
+ assert.equal(searchCatalog(decoded,{origin:'Vitry sur Seine',destination:'Parcelles Assainies'},now).total,1);
+ assert.equal(searchCatalog(decoded,{origin:'Paris 16',destination:'Dakar'},now).total,0);
+ assert.equal(searchCatalog(decoded,{origin:'Paris',destination:'Dakar'},now).results[0].destination_gps_precision,'quartier_approx');
+ assert.match(decoded[0].destination_geocode,/non localisée/);
+});
+
 test('restored route keeps both catalogue and publication endpoints', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url)));
   assert.deepEqual(config.rewrites.find(row => row.source === '/mcp'), {source:'/mcp',destination:'/api/catalogue'});

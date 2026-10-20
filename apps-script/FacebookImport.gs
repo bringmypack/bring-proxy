@@ -188,7 +188,15 @@ var FB_IMPORT_BATCH = [
       "match_tokens": [
         "parcelles",
         "25"
-      ]
+      ],
+      "approximate_parent": {
+        "query": "Parcelles Assainies, Dakar, Sénégal",
+        "match_tokens": [
+          "parcelles"
+        ],
+        "precision": "quartier_approx",
+        "note": "Centre du quartier Parcelles Assainies uniquement; unité 25 non localisée précisément."
+      }
     }
   },
   {
@@ -357,7 +365,7 @@ function fbImportGeocode_(place, country) {
       return !result.partial_match && countries.some(function(c){return c.short_name===country;}) &&
         place.match_tokens.every(function(token){return address.indexOf(norm(token))>=0;});
     });
-    if(matches.length!==1) return {verified:false,reason:'AMBIGUOUS_OR_PARTIAL'};
+    if(matches.length!==1) {if(place.approximate_parent){var parent=fbImportGeocode_(place.approximate_parent,country);if(parent.verified)parent.formatted_address+=' | '+place.approximate_parent.note;return parent;}return {verified:false,reason:'AMBIGUOUS_OR_PARTIAL'};}
     var result=matches[0], point=result.geometry.location;
     return {verified:true,lat:point.lat,lng:point.lng,country:country,
       precision:place.precision,formatted_address:result.formatted_address};
@@ -456,4 +464,27 @@ function importVerifiedFacebookBatch() {
     SpreadsheetApp.flush();
     Logger.log(JSON.stringify(report));return report;
   } finally {lock.releaseLock();}
+}
+
+function completeVerifiedFacebookLocations() {
+  var lock=LockService.getScriptLock();if(!lock.tryLock(10000))throw Error('IMPORT_BUSY');
+  try {
+    var book=SpreadsheetApp.openById(GP_PUBLICATION_SPREADSHEET),sheet=book.getSheetByName(GP_PUBLICATION_SHEET);
+    var data=sheet.getDataRange().getValues(),h=data[0].map(String),cache={},updates=[];
+    FB_IMPORT_BATCH.filter(function(r){return r.year_verified===true && !r.date_conflict;}).forEach(function(original){
+      var r=JSON.parse(JSON.stringify(original));
+      ['origin','destination'].forEach(function(side){var p=r[side+'_place'];if(!p)return;var key=p.query+'|'+r[side+'_country'];if(!cache[key])cache[key]=fbImportGeocode_(p,r[side+'_country']);p.geocode=cache[key];});
+      var plan=planFacebookImport([r],[],h,FB_IMPORT_SOURCES,Utilities.formatDate(new Date(),'Europe/Paris','yyyy-MM-dd'));
+      if(!plan.rows.length)return;
+      var planned=plan.rows[0],id=planned[h.indexOf('gp_id')];
+      for(var n=1;n<data.length;n++)if(data[n][h.indexOf('gp_id')]===id && data[n][h.indexOf('source')]===r.source_url){
+        ['lat_depart','lng_depart','lat_arrivee','lng_arrivee'].concat(FB_IMPORT_EXTRA_HEADERS).forEach(function(key){
+          var col=h.indexOf(key),value=planned[col];
+          if(col>=0 && value!=='' && (data[n][col]==='' || data[n][col]==='A_VERIFIER'))sheet.getRange(n+1,col+1).setValue(value);
+        });
+        updates.push({id:id,row:n+1});break;
+      }
+    });
+    SpreadsheetApp.flush();Logger.log(JSON.stringify({success:true,updated:updates,geocoding:cache}));
+  }finally{lock.releaseLock();}
 }
