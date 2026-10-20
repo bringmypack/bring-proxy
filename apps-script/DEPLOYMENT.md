@@ -27,3 +27,21 @@ after an uncertain response; check `publication_status` before retrying.
 
 Run `npm test` for the local suite. Payments, bookings and Facebook posting
 are not provided by this endpoint. No credentials belong in this repository.
+
+## Catalogue route
+
+The installed catalogue app uses `/mcp`, rewritten to `/api/catalogue`.
+Keep this rewrite and `lib/catalog.js` when releasing from Git. The catalogue
+reader was previously deployed manually on 2026-10-19 and was absent from Git;
+releasing only the old repository made `/mcp` return 404.
+
+The reader retains its original public Facebook-announcement projection from
+workbook `1Op5k1Leaxjwi0Oa3Ic2t572zaNzdXEyRzFaV3lRmIis`. It never selects
+WhatsApp or private request columns. The publication tools keep their separate
+pilot workbook. A search failure is an error, not an empty result. Estimated
+dates, capacity and availability must still be confirmed with the traveller.
+
+Before release, run the catalogue and publication suites. After release, call
+`initialize`, `tools/list`, `service_status` and `search_departures` at `/mcp`,
+and verify `/api/mcp` still lists its publication tools. Use the installed chat
+connector as the final check, not only a direct HTTP request.
