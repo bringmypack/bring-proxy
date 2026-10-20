@@ -8,15 +8,16 @@ import { widgetHtml } from '../lib/travel-card.js';
 import { dispatch as searchDispatch } from '../api/catalogue.js';
 
 const script = await readFile(new URL('../apps-script/GpPublication.gs', import.meta.url),'utf8');
+const awaitShipmentScript=await readFile(new URL('../apps-script/ShipmentPublication.gs',import.meta.url),'utf8');
 const baseHeaders = ['gp_id','role','nom','whatsapp','ville_depart','lat_depart','lng_depart',
   'ville_arrivee','lat_arrivee','lng_arrivee','date_depart','date_expiration','prix_kg',
   'statut','date_creation','source','fiabilite_score','rating_total','rating_count','signalements',
   'badge','date_match','feedback_pending'];
 const input = {request_id:'test_publication_0001',nom:'Test Voyageur',telephone:'+33612345678',
   ville_depart:'Paris',ville_arrivee:'Dakar',date_depart:'2026-10-31',capacite_kg:13,
-  objets_acceptes:'Vêtements, documents et effets personnels',tarif_texte:'À convenir'};
+  objets_acceptes:'Vêtements, documents et effets personnels',tarif_texte:'À convenir',quartier_depart:'Paris 18e',quartier_arrivee:'Scat Urbam',confirmed:true};
 
-function fixture(headers = baseHeaders) {
+function fixture(headers = baseHeaders, sender = false) {
   const state = {rows:[Array.from(headers)],locked:false,writes:0,maxColumns:headers.length};
   const literal = v => typeof v === 'string' && v.startsWith("'") ? v.slice(1) : v;
   const range = (r,c,h=1,w=1) => ({
@@ -29,7 +30,10 @@ function fixture(headers = baseHeaders) {
     insertColumnsAfter:(_,count)=>{state.maxColumns+=count;},
     getRange:range,getDataRange:()=>range(1,1,state.rows.length,state.rows[0].length),
     appendRow:row=>{state.rows.push(row.map(literal));state.writes++;}};
-  const book = {getId:()=>SPREADSHEET_ID,getSheetByName:n=>n==='GP_TRANSPORTEURS'?sheet:null};
+  const senderState={rows:[['colis_id','role','nom','whatsapp','ville_depart','lat_depart','lng_depart','ville_arrivee','lat_arrivee','lng_arrivee','date_souhaitee','date_expiration','poids','statut','date_creation','source']],writes:0,maxColumns:26};
+  const senderRange=(r,c,h=1,w=1)=>({getValues:()=>Array.from({length:h},(_,i)=>Array.from({length:w},(_,j)=>senderState.rows[r+i-1]?.[c+j-1]??'')),setValue:v=>{senderState.rows[r-1][c-1]=literal(v);senderState.writes++;},getA1Notation:()=>`A${r}:AC${r}`});
+  const senderSheet={getName:()=> 'EXPEDITEURS_COLIS',getLastColumn:()=>senderState.rows[0].length,getLastRow:()=>senderState.rows.length,getMaxColumns:()=>senderState.maxColumns,insertColumnsAfter:(_,n)=>senderState.maxColumns+=n,getRange:senderRange,getDataRange:()=>senderRange(1,1,senderState.rows.length,senderState.rows[0].length),appendRow:r=>{senderState.rows.push(r.map(literal));senderState.writes++;}};
+  const book = {getId:()=>SPREADSHEET_ID,getSheetByName:n=>n==='GP_TRANSPORTEURS'?sheet:sender&&n==='EXPEDITEURS_COLIS'?senderSheet:null};
   const context = vm.createContext({
     Date:class extends Date {constructor(...args){super(...(args.length?args:['2026-10-20T08:00:00Z']));}},
     SpreadsheetApp:{openById:id=>{assert.equal(id,SPREADSHEET_ID);return book;},flush:()=>{}},
@@ -40,7 +44,8 @@ function fixture(headers = baseHeaders) {
     getCoordinates:()=>({lat:null,lng:null})
   });
   vm.runInContext(script,context);
-  return {state,context};
+  vm.runInContext(awaitShipmentScript,context);
+  return {state,context,senderState};
 }
 
 test('maps complete traveller fields to headers and preserves existing records',()=>{
@@ -135,7 +140,7 @@ test('HTTP discovery, initialization, notification, malformed input and origin v
     status:c=>{result.status=c;return res;},json:b=>{result.body=b;return res;},end:()=>res};
     await handler({headers:{},method:'POST',...req},res);return result;};
   assert.equal((await invoke({body:{jsonrpc:'2.0',id:1,method:'initialize'}})).body.result.protocolVersion,'2025-03-26');
-  assert.equal((await invoke({body:{jsonrpc:'2.0',id:2,method:'tools/list'}})).body.result.tools.length,3);
+  assert.equal((await invoke({body:{jsonrpc:'2.0',id:2,method:'tools/list'}})).body.result.tools.length,8);
   assert.equal((await invoke({body:{jsonrpc:'2.0',method:'notifications/initialized'}})).status,202);
   assert.equal((await invoke({body:'broken'})).status,400);
   assert.equal((await invoke({headers:{origin:'https://untrusted.invalid'},body:{}})).status,403);
@@ -147,7 +152,7 @@ test('preview renders a real MCP app and never writes, including incomplete draf
   const preview=await dispatch({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'prepare_departure',arguments:{ville_depart:'Lille',ville_arrivee:'Saint-Louis'}}},async d=>context[d.action](d));
   assert.equal(preview.result.structuredContent.saved,false);assert.equal(preview.result.structuredContent.ready,true);
   assert.equal(preview.result.structuredContent.preview.ville_depart,'Lille');assert.equal(state.writes,0);
-  const resource=await dispatch({jsonrpc:'2.0',id:5,method:'resources/read',params:{uri:'ui://bringmypack/travel-card-v1.html'}});
+  const resource=await dispatch({jsonrpc:'2.0',id:5,method:'resources/read',params:{uri:'ui://bringmypack/travel-card-v2.html'}});
   assert.equal(resource.result.contents[0].mimeType,'text/html;profile=mcp-app');
   assert.match(resource.result.contents[0].text,/Publier mon voyage/);
   assert.match(resource.result.contents[0].text,/ui\/initialize/);
@@ -245,4 +250,31 @@ test('migration retains original IDs, maps columns and never copies private hist
   const retry=context.gpCatalogMigrationPlan(plan.headers,plan.rows,headers,[row]);
   assert.equal(retry.rows.length,0);
   assert.throws(()=>context.gpCatalogMigrationPlan(['gp_id'],[],headers,[row]),/MIGRATION_HEADERS_INVALID/);
+});
+
+const senderInput={request_id:'sender_publication_0001',nom:'Test Expéditeur',telephone:'+33622222222',ville_depart:'Paris',ville_arrivee:'Dakar',quartier_depart:'Paris 18e',quartier_arrivee:'Scat Urbam',date_souhaitee:'2026-10-29',date_fin_souhaitee:'2026-11-02',poids:3,contenu:'Vêtements',confirmed:true};
+test('sender publishes in its own tab, N ACTIF/P Chat-GP, matching both neighborhoods without leaking phone',async()=>{
+ const {state,senderState,context}=fixture(baseHeaders,true),upstream=async d=>context[d.action](d);
+ context.publishGP({...input});
+ const call=(name,args)=>dispatch({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}},upstream);
+ const saved=(await call('publish_shipment',senderInput)).result.structuredContent;
+ assert.equal(saved.saved,true);assert.equal(saved.matching.total,1);assert.equal(saved.matching.results[0].origin_neighborhood_match,true);assert.equal(saved.matching.results[0].destination_neighborhood_match,true);
+ assert.equal(senderState.rows[1][13],'ACTIF');assert.equal(senderState.rows[1][15],'Chat-GP');assert.equal(state.rows[1][13],'ACTIF');assert.equal(state.rows[1][15],'Chat-GP');
+ for(const secret of [senderInput.telephone,input.telephone,senderInput.request_id,'publication_fingerprint']) assert.equal(JSON.stringify(saved.matching).includes(secret),false);
+ assert.equal((await call('publish_shipment',senderInput)).result.structuredContent.duplicate,true);assert.equal(senderState.rows.length,2);
+ assert.equal(context.getShipmentPublicationStatus({request_id:senderInput.request_id}).id,saved.id);
+ assert.equal(context.findMatchesForPublication({kind:'GP',request_id:input.request_id}).total,1);
+ assert.equal(context.findMatchesForPublication({kind:'GP',request_id:'unknown_publication_0001'}).error,'PUBLICATION_NOT_FOUND');
+});
+test('sender validation, confirmation and dry run never write or geocode',()=>{
+ for(const patch of [{confirmed:false},{quartier_depart:''},{quartier_arrivee:''},{date_fin_souhaitee:'2026-10-28'},{poids:0}]){const f=fixture(baseHeaders,true);assert.equal(f.context.publishShipment({...senderInput,...patch}).success,false);assert.equal(f.senderState.writes,0);}
+ const f=fixture(baseHeaders,true);f.context.fbImportGeocode_=()=>{throw Error('unexpected geocode');};assert.equal(f.context.publishShipment({...senderInput,dry_run:true}).dry_run,true);assert.equal(f.senderState.writes,0);
+});
+test('current matches respect capacity, date windows and quarter ranking; historical senders remain excluded',()=>{
+ const f=fixture(baseHeaders,true);f.context.publishShipment({...senderInput});f.context.publishGP({...input,capacite_kg:2});assert.equal(f.context.findMatchesForPublication({kind:'EXPEDITEUR',request_id:senderInput.request_id}).total,0);
+ const g=fixture(baseHeaders,true);g.senderState.rows.push(g.senderState.rows[0].map(k=>({colis_id:'old_private',source:'Chat-GP',nom:'Private person',statut:'ACTIF'})[k]??''));g.context.publishGP({...input});assert.equal(g.context.findMatchesForPublication({kind:'GP',request_id:input.request_id}).total,0);
+ g.context.publishShipment({...senderInput});assert.equal(g.context.findMatchesForPublication({kind:'GP',request_id:input.request_id}).total,1);
+});
+test('contact requires a current match, explicit request and target consent',()=>{
+ for(const consent of [false,true]){const f=fixture(baseHeaders,true);f.context.publishGP({...input,contact_match_consent:consent});f.context.publishShipment({...senderInput});const gp=f.context.getPublicationStatus({request_id:input.request_id});const args={kind:'EXPEDITEUR',request_id:senderInput.request_id,match_id:gp.id,confirmed:true};assert.equal(f.context.getMatchContact({...args,confirmed:false}).success,false);const result=f.context.getMatchContact(args);assert.equal(result.success,consent);if(consent){assert.equal(result.contact.telephone,input.telephone);assert.equal(result.message_sent,false);}assert.equal(f.context.getMatchContact({...args,match_id:'unrelated'}).error,'MATCH_NOT_FOUND');}
 });

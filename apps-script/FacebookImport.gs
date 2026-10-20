@@ -30,7 +30,7 @@ function planFacebookImport(records, existingIds, headers, sources, today) {
     if(seenTrips.has(key)){duplicates.push({id,reason:'POSSIBLE_CROSS_POST_REVIEW'});continue;}
     seen.add(id);seenPostTrips.add(r.post_id+'|'+postTrip(r));seenTrips.add(key);
     const record={gp_id:id,role:'GP',nom:r.operator,ville_depart:r.origin,ville_arrivee:r.destination,
-      date_depart:date,date_expiration:date+'T23:59:59Z',statut:'A_VERIFIER',source:r.source_url,
+      date_depart:date,date_expiration:date+'T23:59:59Z',statut:'ACTIF',source:r.source_url,
       date_source:typeof r.date_as_posted==='string'?r.date_as_posted:date,
       prix_kg:typeof r.price_per_kg==='number'&&Number.isFinite(r.price_per_kg)&&r.price_per_kg>=0?r.price_per_kg:'',
       devise:/^[A-Z]{3}$/.test(r.currency||'')?r.currency:'',

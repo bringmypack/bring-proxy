@@ -17,7 +17,7 @@
   },
   "apps": "./.app.json",
   "name": "gpt-7a0bfea81ec9cacdb966a650d57a6961",
-  "version": "0.73.0",
+  "version": "0.74.0",
   "description": "Trouvez des annonces de voyageurs entre la France et le Sénégal et préparez votre envoi dans le chat.",
   "author": {
     "name": "GPT Creator"
