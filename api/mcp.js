@@ -1,4 +1,6 @@
 // Additional MCP endpoint. The existing catalogue and /api/proxy are unchanged.
+import { randomUUID } from 'node:crypto';
+import { CARD_URI, widgetHtml } from '../lib/travel-card.js';
 export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby-j5tKAEK5gBW9-64-lfvNDXdyIBu6davlmz3LAcDPp9JS8LqiFBstMPu6cJSEDfOS/exec';
 export const SPREADSHEET_ID = '1KJL7mAtWvrndgrHX_5NjfUciqVX0uMxL63T6XJnRFmE';
 const origins = new Set(['https://chatgpt.com', 'https://chat.openai.com']);
@@ -17,14 +19,21 @@ const fields = {
   dry_run: {type:'boolean',description:'Validate without writing. A dry run is never a saved announcement.'}
 };
 export const tools = [
+  {name:'prepare_departure',title:'Préparer mon voyage',
+    description:'Show an editable travel card with real Publish and Modify controls in chat. Pass the traveller details already provided; omit unknown values. This tool does not save or publish anything. Name and WhatsApp can be completed on the card. Use this for a requested preview or preparation, before publication is authorized.',
+    inputSchema:{type:'object',properties:fields,required:[],additionalProperties:false},
+    _meta:{ui:{resourceUri:CARD_URI,visibility:['model']},'openai/outputTemplate':CARD_URI},
+    annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}},
   {name:'publish_departure',title:'Publier mon voyage',
     description:'Save a traveller announcement to BringMyPack Google Sheets after the traveller explicitly requests publication of the reviewed data and contact number. No booking, payment or Facebook post. Call only for real publication requests. Reuse request_id after any error; use publication_status to resolve an uncertain outcome. dry_run validates without saving.',
     inputSchema:{type:'object',properties:fields,
       required:['request_id','nom','telephone','ville_depart','ville_arrivee','date_depart','capacite_kg','objets_acceptes','tarif_texte'],additionalProperties:false},
+    _meta:{ui:{visibility:['model','app']}},
     annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:true}},
   {name:'publication_status',title:'Vérifier mon enregistrement',
     description:'Check whether a publication request was saved after a timeout. Returns a receipt only; no private directory or contact details.',
     inputSchema:{type:'object',properties:{request_id:fields.request_id},required:['request_id'],additionalProperties:false},
+    _meta:{ui:{visibility:['model','app']}},
     annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}}
 ];
 
@@ -67,15 +76,26 @@ export async function dispatch(message, upstream = callScript) {
   const result = value => ({jsonrpc:'2.0',id,result:value});
   const error = (code, text) => ({jsonrpc:'2.0',id,error:{code,message:text}});
   if (message.method === 'initialize') return result({protocolVersion:'2025-03-26',
-    capabilities:{tools:{}},serverInfo:{name:'bringmypack-publication',version:'1.0.0'},
+    capabilities:{tools:{},resources:{}},serverInfo:{name:'bringmypack-publication',version:'1.1.0'},
     instructions:'This endpoint publishes GP traveller announcements only. Keep the existing BringMyPack catalogue tools for searches. Voice input uses the host microphone when available. Payments are not active.'});
   if (message.method === 'ping') return result({});
   if (message.method === 'tools/list') return result({tools});
+  if (message.method === 'resources/list') return result({resources:[{uri:CARD_URI,name:'Votre voyage BringMyPack',mimeType:'text/html;profile=mcp-app'}]});
+  if (message.method === 'resources/read') {
+    if(message.params?.uri!==CARD_URI)return error(-32602,'Unknown resource');
+    return result({contents:[{uri:CARD_URI,mimeType:'text/html;profile=mcp-app',text:widgetHtml,
+      _meta:{ui:{prefersBorder:false,csp:{connectDomains:[],resourceDomains:[]}}}}]});
+  }
   if (message.method !== 'tools/call') return error(-32601,'Method not found');
   const tool = tools.find(t => t.name === message.params?.name);
   if (!tool) return error(-32602,'Unknown tool');
   const args = message.params?.arguments;
   if (!validateArguments(tool,args)) return result(toolResult({saved:false,error:'INVALID_ARGUMENTS'},true));
+  if(tool.name==='prepare_departure'){
+    let ready=false;try{const c=await upstream({action:'publicationCapabilities'});ready=c.success===true&&c.write_requests===true&&c.spreadsheet_id===SPREADSHEET_ID;}catch{}
+    const preview={...args};delete preview.dry_run;delete preview.request_id;
+    return result(toolResult({saved:false,ready,preview,request_id:args.request_id||randomUUID(),payments:false}));
+  }
   try {
     // Check the exact configured destination before a write. Old deployments
     // return "Action inconnue", so publishing stays disabled until deployed.
