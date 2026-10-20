@@ -58,8 +58,16 @@ Une tâche unique est enregistrée: cinq posts par groupe, ordre utilisateur, ti
 
 FacebookCloud.gs prépare un worker propriétaire désactivé par défaut. Il lit Apify avec une clé limitée à la lecture, traite une file sous lock, lit les images via OCR Google Drive, valide les dates et conserve les cas ambigus en révision. Aucune API de modèle de langage. Les placeholders « May be an image of text » ne sont pas de vrais textes OCR.
 
-Activation en attente: autorisation explicite pour créer/transmettre une clé Apify de lecture dans les propriétés privées du projet Apps Script et pour le scope Google drive.file (documents OCR créés par le worker). La clé ne doit jamais entrer dans GitHub, la feuille ou les logs. Conserver les scopes historiques; ajouter seulement les scopes nécessaires au worker et à son déclencheur. Activer Drive API dans le projet Google associé avant le test OCR.
+Accord explicite reçu le 20 octobre: clé Apify limitée à Read / List runs pour la seule tâche BringMyPack créée et conservée dans les propriétés privées Apps Script. Le manifeste active Drive v3 et demande seulement drive.file pour les documents OCR créés par le worker, en plus des scopes Sheets, external_request et script.scriptapp. Consentement Google propriétaire encore bloqué par une redirection multi-compte vers une page inexistante script.google.com/accounts. Aucune autorisation accordée au compte personnel par défaut. La clé ne doit jamais entrer dans GitHub, la feuille ou les logs. Conserver les scopes historiques; ajouter seulement les scopes nécessaires au worker et à son déclencheur. Activer Drive API dans le projet Google associé avant le test OCR.
 
 Après accord: configurer BMP_APIFY_READ_TOKEN et BMP_APIFY_TASK_ID dans Script Properties; tester OCR/import, puis définir BMP_FACEBOOK_OCR_AUTHORIZED=true et installer le déclencheur horaire via installFacebookCloudTrigger. Activer ensuite la planification Apify. L’ancien report ChatGPT doit être suspendu seulement après validation de ce parcours.
 
 Les nouvelles feuilles FB_QUEUE et FB_OCR_CACHE seront créées au premier traitement autorisé. Le worker ne démarre aucun run Apify et ne peut donc pas augmenter la fréquence ou activer un plan payant. Le blocage du crédit Free reste le plafond final.
+
+## Stato del consenso Google (20 ottobre 2026)
+
+La verifica conferma token e task presenti, worker disattivato. installFacebookCloudTrigger non è riuscita: manca il consenso script.scriptapp. Nessun attivatore creato; nessun OCR o import automatico ancora verificato. La pianificazione Apify resta disattivata.
+
+Per riprendere, aprire questo stesso progetto in un profilo Chrome con il solo account bringmypack@gmail.com connesso. Eseguire authorizeFacebookCloud: lo stato REQUIRED indica consensi mancanti e produce il collegamento ufficiale del progetto. Completare il consenso del proprietario; poi testare OCR/import e deduplica prima di attivare la pianificazione delle 09:00 Europe/Paris. Non concedere accesso all’account personale predefinito, non esportare cookie e non revocare le connessioni esistenti.
+
+Credito Free verificato: periodo 20 ottobre–19 novembre 2026 UTC; prossimo rinnovo 20 novembre. Il credito non usato scade e non si accumula. Il piano Free si ferma al limite; nessun upgrade a pagamento attivato.
