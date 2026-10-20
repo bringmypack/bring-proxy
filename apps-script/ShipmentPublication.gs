@@ -27,14 +27,21 @@ function publicationAddHeaders_(sheet,headers,extra){
  extra.forEach(function(key){if(headers.indexOf(key)<0){if(sheet.getMaxColumns()<headers.length+1)sheet.insertColumnsAfter(sheet.getMaxColumns(),1);headers.push(key);sheet.getRange(1,headers.length).setValue(key);}});
 }
 function publicationLocation_(city,quarter){
- var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();};
- var unknown=/^(?:ville uniquement|non precise|inconnu|je ne sais pas)$/.test(norm(quarter)),area=unknown?'':quarter;
- var countries={paris:'FR',lyon:'FR',marseille:'FR',lille:'FR',nice:'FR',toulouse:'FR',bordeaux:'FR',nantes:'FR',montpellier:'FR',dakar:'SN','saint-louis':'SN','saint louis':'SN',thies:'SN',mbour:'SN',touba:'SN',ziguinchor:'SN',kolda:'SN'};
- var country=countries[norm(city)],text=[area,city,country==='FR'?'France':country==='SN'?'Sénégal':''].filter(Boolean).join(', ');
- var p={source_verified:true,text:text,neighborhood:area,query:text,match_tokens:[norm(city)].concat(area?norm(area).split(/[- ]+/).filter(function(t){return t.length>2;}).slice(0,4):[]),precision:area?'quartier_approx':'ville_approx'};
- var geo=country&&typeof fbImportGeocode_==='function'?fbImportGeocode_(p,country):{verified:false};
- return {text:text,quarter:area,lat:geo.verified?geo.lat:'',lng:geo.verified?geo.lng:'',precision:geo.verified?geo.precision:'A_VERIFIER',geocode:geo.verified?geo.formatted_address:''};
+ var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();};
+ var unknown=/^(?:ville uniquement|non precise|inconnu|je ne sais pas)$/.test(norm(quarter)),area=unknown?'':String(quarter||'').trim();
+ var countries={paris:'FR',lyon:'FR',marseille:'FR',lille:'FR',nice:'FR',toulouse:'FR',bordeaux:'FR',nantes:'FR',montpellier:'FR',dakar:'SN','saint louis':'SN',thies:'SN',mbour:'SN',touba:'SN',ziguinchor:'SN',kolda:'SN'};
+ var country=countries[norm(city)],district=norm(city)==='paris'&&norm(area).match(/^(?:paris )?(20|1[0-9]|[1-9])(?: ?(?:ieme|eme|er|e))?(?: arrondissement)?$/),number=district?Number(district[1]):null;
+ var areaQuery=number?number+'e arrondissement':area;
+ var text=[area,city,country==='FR'?'France':country==='SN'?'Sénégal':''].filter(Boolean).join(', ');
+ var query=[areaQuery,city,country==='FR'?'France':country==='SN'?'Sénégal':''].filter(Boolean).join(', ');
+ var p={source_verified:true,text:text,neighborhood:area,query:query,allowed_countries:['FR','SN'],paris_arrondissement:number,city:city,allow_parent_fallback:!!area&&!number,
+  match_phrase:area&&!number?area:null,match_tokens:number?['Paris']:area?[area]:[String(city).trim()],precision:area?'quartier_approx':'ville_approx'};
+ // A named quarter is validated against Google's address components, not only its display label.
+ var geo=/[;|]/.test(area)?{verified:false,reason:'MULTIPLE_LOCATIONS'}:typeof fbImportGeocode_==='function'?fbImportGeocode_(p,country):{verified:false,reason:'GEOCODER_UNAVAILABLE'};
+ if(!geo.verified&&typeof Logger!=='undefined')Logger.log(JSON.stringify({event:'PUBLICATION_GEOCODE_UNRESOLVED',city:city,quarter:area,reason:geo.reason||'UNRESOLVED'}));
+ return {text:text,quarter:area,lat:geo.verified?geo.lat:'',lng:geo.verified?geo.lng:'',precision:geo.verified?geo.precision:'A_VERIFIER',geocode:geo.verified?geo.formatted_address:'',reason:geo.verified?'OK':geo.reason||'UNRESOLVED'};
 }
+
 function publicationLocationRecord_(value){
  var out={};['depart','arrivee'].forEach(function(side){var p=publicationLocation_(value['ville_'+side],value['quartier_'+side]);out['quartier_'+side]=p.quarter;out['lieu_'+side+'_texte']=p.text;out['lat_'+side]=p.lat;out['lng_'+side]=p.lng;out['precision_gps_'+side]=p.precision;out['geocodage_'+side]=p.geocode;});return out;
 }
@@ -136,4 +143,35 @@ function publicationFlowSelfTest(){
  var gp=publishGP(Object.assign({},base,{date_depart:date,capacite_kg:1,objets_acceptes:'Documents',tarif_texte:'À convenir'})),colis=publishShipment(Object.assign({},base,{date_souhaitee:date,poids:1,contenu:'Documents'})),cap=publicationCapabilities();
  if(!gp.success||!gp.dry_run||!colis.success||!colis.dry_run||!cap.write_shipments)throw Error('PUBLICATION_SELF_TEST_FAILED');
  Logger.log(JSON.stringify({gp_dry_run:gp.dry_run,shipment_dry_run:colis.dry_run,version:cap.version,matching:cap.matching,rows_created:0}));
+}
+
+// Owner-only maintenance. Never add these functions to doPost or the public MCP tools.
+function diagnosePublicationGps(){return publicationRepairGps_(false);}
+function repairMissingPublicationGps(){return publicationRepairGps_(true);}
+function publicationRepairGps_(write){
+ var book=SpreadsheetApp.openById(GP_PUBLICATION_SPREADSHEET),today=Utilities.formatDate(new Date(),'Europe/Paris','yyyy-MM-dd'),report=[],budget=5;
+ var lock=LockService.getScriptLock();if(!lock.tryLock(10000))throw Error('GPS_REPAIR_BUSY');
+ try{
+  [GP_PUBLICATION_SHEET,SENDER_PUBLICATION_SHEET].forEach(function(name){
+   var sheet=book.getSheetByName(name);if(!sheet)return;var rows=sheet.getDataRange().getValues(),h=rows[0].map(String),idKey=name===GP_PUBLICATION_SHEET?'gp_id':'colis_id',dateKey=name===GP_PUBLICATION_SHEET?'date_depart':'date_souhaitee';
+   var required=[idKey,'publication_request_id','source','ville_depart','ville_arrivee','quartier_depart','quartier_arrivee','lat_depart','lng_depart','lat_arrivee','lng_arrivee','precision_gps_depart','precision_gps_arrivee','geocodage_depart','geocodage_arrivee'];
+   if(required.some(function(k){return h.indexOf(k)<0;}))return;
+   for(var n=1;n<rows.length&&budget>0;n++){
+    var get=function(k){return rows[n][h.indexOf(k)];},date=gpCatalogDate(get(dateKey));
+    if(get('source')!=='Chat-GP'||! /^(?:GP_|COL_)/.test(String(get(idKey)))||! /^[a-zA-Z0-9_-]{16,100}$/.test(String(get('publication_request_id')))||get('statut')!=='ACTIF'||!date||date<today)continue;
+    var missing=['depart','arrivee'].filter(function(side){return get('lat_'+side)===''&&get('lng_'+side)===''&&String(get('quartier_'+side)).trim();});
+    if(!missing.length)continue;budget--;
+    missing.forEach(function(side){
+     var city=get('ville_'+side),quarter=get('quartier_'+side),geo=publicationLocation_(city,quarter),entry={sheet:name,row:n+1,side:side,reason:geo.reason,precision:geo.precision,updated:false};
+     if(write&&typeof geo.lat==='number'&&typeof geo.lng==='number'){
+      var fresh=sheet.getRange(n+1,1,1,h.length).getValues()[0],same=function(k){return String(fresh[h.indexOf(k)])===String(get(k));};
+      if(![idKey,'publication_request_id','source','ville_'+side,'quartier_'+side].every(same)||fresh[h.indexOf('lat_'+side)]!==''||fresh[h.indexOf('lng_'+side)]!==''){entry.reason='ROW_CHANGED';report.push(entry);return;}
+      var values={};values['lat_'+side]=geo.lat;values['lng_'+side]=geo.lng;values['precision_gps_'+side]=geo.precision;values['geocodage_'+side]=geo.geocode;
+      Object.keys(values).forEach(function(k){sheet.getRange(n+1,h.indexOf(k)+1).setValue(gpPublicationText(values[k]));});entry.updated=true;
+     }report.push(entry);
+    });
+   }
+  });
+  SpreadsheetApp.flush();Logger.log(JSON.stringify({write:write,locations:report}));return {write:write,locations:report};
+ }finally{lock.releaseLock();}
 }
