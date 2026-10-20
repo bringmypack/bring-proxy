@@ -4,15 +4,16 @@ var GP_PUBLICATION_SHEET = 'GP_TRANSPORTEURS';
 
 function publicationCapabilities() {
   var book = SpreadsheetApp.openById(GP_PUBLICATION_SPREADSHEET);
-  return { success: true, version: '1.1.0', spreadsheet_id: book.getId(),
+  return { success: true, version: '2.0.0', spreadsheet_id: book.getId(),
     sheet: GP_PUBLICATION_SHEET, search: true,
-    write_requests: !!book.getSheetByName(GP_PUBLICATION_SHEET), payments: false };
+    write_requests: !!book.getSheetByName(GP_PUBLICATION_SHEET),
+    write_shipments: typeof publishShipment==='function'&&!!book.getSheetByName('EXPEDITEURS_COLIS'),matching:typeof findMatchesForPublication==='function',payments:false };
 }
 
 function gpPublicationInput(data) {
   var input = data || {};
   var fields = ['request_id', 'nom', 'telephone', 'ville_depart', 'ville_arrivee',
-    'date_depart', 'objets_acceptes', 'tarif_texte'];
+    'date_depart', 'objets_acceptes', 'tarif_texte', 'quartier_depart', 'quartier_arrivee'];
   var value = {};
   fields.forEach(function(key) {
     value[key] = typeof input[key] === 'string' ? input[key].trim() : '';
@@ -22,7 +23,7 @@ function gpPublicationInput(data) {
   if (!/^[a-zA-Z0-9_-]{16,100}$/.test(value.request_id)) throw new Error('INVALID_REQUEST_ID');
   if (value.nom.length > 100 || value.objets_acceptes.length > 1000 ||
       value.tarif_texte.length > 200 || value.ville_depart.length > 250 ||
-      value.ville_arrivee.length > 250) throw new Error('FIELD_TOO_LONG');
+      value.ville_arrivee.length > 250 || value.quartier_depart.length > 250 || value.quartier_arrivee.length > 250) throw new Error('FIELD_TOO_LONG');
   if (!/^\+?[1-9][0-9]{7,14}$/.test(value.telephone)) throw new Error('INVALID_PHONE');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value.date_depart)) throw new Error('INVALID_DATE');
   var date = new Date(value.date_depart + 'T12:00:00Z');
@@ -43,6 +44,7 @@ function gpPublicationInput(data) {
     value.prix_kg = '';
     value.devise = '';
   }
+  value.contact_match_consent=input.contact_match_consent===true;
   return value;
 }
 
@@ -58,7 +60,7 @@ function gpPublicationReceipt(book, sheet, headers, row, number, duplicate) {
     request_id: row[headers.indexOf('publication_request_id')],
     spreadsheet_id: book.getId(), sheet: sheet.getName(), row: number,
     updated_range: sheet.getRange(number, 1, 1, headers.length).getA1Notation(),
-    duplicate: duplicate, payments: false };
+    duplicate: duplicate, contact_enabled: row[headers.indexOf('contact_match_consent')]===true, payments: false };
 }
 
 function gpPublicationText(value) {
@@ -67,6 +69,7 @@ function gpPublicationText(value) {
 }
 
 function publishGP(data) {
+  if(!data||data.confirmed!==true)return {success:false,error:'CONFIRMATION_REQUIRED'};
   var value;
   try { value = gpPublicationInput(data); }
   catch (error) { return { success: false, error: String(error.message) }; }
@@ -102,7 +105,7 @@ function publishGP(data) {
     if (data.dry_run === true) return { success: true, dry_run: true,
       spreadsheet_id: book.getId(), sheet: sheet.getName(), request_id: value.request_id };
     ['capacite_kg','objets_acceptes','tarif_texte','devise','publication_request_id',
-      'publication_fingerprint'].forEach(function(key) {
+      'publication_fingerprint','contact_match_consent','quartier_depart','quartier_arrivee','lieu_depart_texte','lieu_arrivee_texte','precision_gps_depart','precision_gps_arrivee','geocodage_depart','geocodage_arrivee'].forEach(function(key) {
       if (headers.indexOf(key) < 0) {
         if (sheet.getMaxColumns() < headers.length + 1)
           sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
@@ -113,12 +116,9 @@ function publishGP(data) {
     var now = new Date();
     var expiration = new Date(value.date_depart + 'T23:59:59Z');
     expiration.setUTCDate(expiration.getUTCDate() + 1);
-    var dep = typeof getCoordinates === 'function' ? getCoordinates(value.ville_depart) : {};
-    var arr = typeof getCoordinates === 'function' ? getCoordinates(value.ville_arrivee) : {};
-    var record = Object.assign({}, value, { gp_id: 'GP_' + Utilities.getUuid(), role: 'GP',
-      whatsapp: value.telephone, lat_depart: dep.lat == null ? '' : dep.lat,
-      lng_depart: dep.lng == null ? '' : dep.lng, lat_arrivee: arr.lat == null ? '' : arr.lat,
-      lng_arrivee: arr.lng == null ? '' : arr.lng, date_expiration: expiration,
+    var places = publicationLocationRecord_(value);
+    var record = Object.assign({}, value, places, { gp_id: 'GP_' + Utilities.getUuid(), role: 'GP',
+      whatsapp: value.telephone, date_expiration: expiration,
       statut: 'ACTIF', date_creation: now, source: 'Chat-GP', fiabilite_score: 0,
       rating_total: 0, rating_count: 0, signalements: 0, badge: 'Nouveau',
       publication_request_id: value.request_id, publication_fingerprint: fingerprint });
@@ -198,14 +198,14 @@ function readPublicCatalog() {
       currency: /^[A-Z]{3}$/.test(String(cell('devise'))) ? String(cell('devise')) : null,
       capacity_kg: numeric('capacite_kg'), accepted_items: String(cell('objets_acceptes')) || null,
       price_terms: String(cell('tarif_texte')) || null,
-      origin_place: facebook ? String(cell('lieu_depart_texte')) || null : null,
-      destination_place: facebook ? String(cell('lieu_arrivee_texte')) || null : null,
-      origin_neighborhood: facebook ? String(cell('quartier_depart')) || null : null,
-      destination_neighborhood: facebook ? String(cell('quartier_arrivee')) || null : null,
-      origin_gps_precision: facebook ? String(cell('precision_gps_depart')) || null : null,
-      destination_gps_precision: facebook ? String(cell('precision_gps_arrivee')) || null : null,
-      origin_geocode: facebook ? String(cell('geocodage_depart')) || null : null,
-      destination_geocode: facebook ? String(cell('geocodage_arrivee')) || null : null,
+      origin_place: String(cell('lieu_depart_texte')) || null,
+      destination_place: String(cell('lieu_arrivee_texte')) || null,
+      origin_neighborhood: String(cell('quartier_depart')) || null,
+      destination_neighborhood: String(cell('quartier_arrivee')) || null,
+      origin_gps_precision: String(cell('precision_gps_depart')) || null,
+      destination_gps_precision: String(cell('precision_gps_arrivee')) || null,
+      origin_geocode: String(cell('geocodage_depart')) || null,
+      destination_geocode: String(cell('geocodage_arrivee')) || null,
       availability_confirmed: false });
   }
   return { success: true, spreadsheet_id: book.getId(), sheet: sheet.getName(), records: records };

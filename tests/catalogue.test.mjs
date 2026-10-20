@@ -81,7 +81,8 @@ test('status reads the source, dates are validated and arbitrary tools cannot ex
   assert.equal(status.result.structuredContent.features.payments,false);
   const invalid = await dispatch(call('search_departures',{origin:'Paris',destination:'Dakar',date_from:'2026-10-19'}),fetcher,now);
   assert.equal(invalid.result.structuredContent.error,'INVALID_DATE_RANGE');
-  assert.equal((await dispatch(call('publish_departure'),fetcher,now)).error.code,-32602);
+  assert.equal((await dispatch(call('publish_departure'),fetcher,now)).result.structuredContent.error,'INVALID_ARGUMENTS');
+  assert.equal((await dispatch(call('unknown_tool'),fetcher,now)).error.code,-32602);
 });
 
 function response() {return {headers:{},setHeader(k,v){this.headers[k]=v;},status(code){this.statusCode=code;return this;},json(body){this.body=body;return this;},end(){return this;}};}
@@ -90,7 +91,7 @@ test('stateless HTTP discovery survives repeated requests and stale session head
     const res = response();
     await handler({method:'POST',headers:{'mcp-session-id':'expired-client-session'},body:{jsonrpc:'2.0',id:i,method:'tools/list'}},res);
     assert.equal(res.statusCode,200);
-    assert.deepEqual(res.body.result.tools.map(x=>x.name),['service_status','search_departures']);
+    assert.deepEqual(res.body.result.tools.map(x=>x.name),['service_status','search_departures','prepare_departure','publish_departure','publication_status','prepare_shipment','publish_shipment','shipment_publication_status','publication_matches','get_match_contact']);
     assert.equal(res.headers['Mcp-Session-Id'],undefined);
   }
   const notification=response();
