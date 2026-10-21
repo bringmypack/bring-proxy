@@ -350,30 +350,57 @@ var FB_IMPORT_BATCH = [
 var FB_IMPORT_EXTRA_HEADERS = ['quartier_depart','quartier_arrivee','lieu_depart_texte','lieu_arrivee_texte','precision_gps_depart','precision_gps_arrivee','geocodage_depart','geocodage_arrivee'];
 
 function fbImportGeocode_(place, country) {
-  var empty = {verified:false,reason:'UNRESOLVED'};
-  if (!place || !place.query || !place.match_tokens || !place.match_tokens.length) return empty;
+  var empty={verified:false,reason:'UNRESOLVED'};
+  if(!place||!place.query||!place.match_tokens||!place.match_tokens.length)return empty;
+  var allowed=country?[country]:place.allowed_countries;
+  if(!allowed||!allowed.length)return {verified:false,reason:'COUNTRY_REQUIRED'};
   try {
-    var response = UrlFetchApp.fetch('https://maps.googleapis.com/maps/api/geocode/json?address=' +
-      encodeURIComponent(place.query) + '&components=country:' + country +
-      '&key=' + GOOGLE_MAPS_API_KEY, {muteHttpExceptions:true});
-    var data = JSON.parse(response.getContentText());
-    if(data.status!=='OK') return {verified:false,reason:String(data.status||'GEOCODER_ERROR')};
-    var norm = function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();};
-    var matches=data.results.filter(function(result){
-      var countries=result.address_components.filter(function(c){return c.types.indexOf('country')>=0;});
-      var address=norm(result.formatted_address);
-      var component=function(type){return result.address_components.find(function(c){return c.types.indexOf(type)>=0;});};
-      if(place.street_number&&(!component('street_number')||norm(component('street_number').long_name).replace(/ /g,'')!==norm(place.street_number).replace(/ /g,'')))return false;
+    var response=UrlFetchApp.fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(place.query)+
+      (country?'&components=country:'+country:'')+'&language=fr&key='+GOOGLE_MAPS_API_KEY,{muteHttpExceptions:true});
+    var data=JSON.parse(response.getContentText());
+    if(data.status!=='OK')return {verified:false,reason:String(data.status||'GEOCODER_ERROR')};
+    var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/(\d+)(?:ieme|eme|er|re|e|st|nd|rd|th)\b/g,'$1').replace(/[^a-z0-9]+/g,' ').trim();};
+    var compact=function(v){return norm(v).replace(/ /g,'');};
+    var matches=(data.results||[]).filter(function(result){
+      var components=result.address_components||[],countries=components.filter(function(c){return (c.types||[]).indexOf('country')>=0;});
+      var point=result.geometry&&result.geometry.location;
+      if(!point||typeof point.lat!=='number'||!isFinite(point.lat)||Math.abs(point.lat)>90||typeof point.lng!=='number'||!isFinite(point.lng)||Math.abs(point.lng)>180)return false;
+      if(result.partial_match||!countries.some(function(c){return allowed.indexOf(c.short_name)>=0;}))return false;
+      var component=function(type){return components.find(function(c){return (c.types||[]).indexOf(type)>=0;});};
+      if(place.street_number&&(!component('street_number')||compact(component('street_number').long_name)!==compact(place.street_number)))return false;
       if(place.postal_code&&(!component('postal_code')||component('postal_code').long_name!==place.postal_code))return false;
       if(place.precision==='adresse'&&['ROOFTOP','RANGE_INTERPOLATED'].indexOf(result.geometry.location_type)<0)return false;
-      return !result.partial_match && countries.some(function(c){return c.short_name===country;}) &&
-        place.match_tokens.every(function(token){return address.indexOf(norm(token))>=0;});
+      if(place.paris_arrondissement){
+        var number=Number(place.paris_arrondissement),postal=component('postal_code');
+        var district=components.some(function(c){return (c.types||[]).some(function(t){return /^sublocality|^administrative_area_level_[34]$/.test(t);})&&new RegExp('(?:^| )'+number+'(?: |$)').test(norm(c.long_name));});
+        if(!(postal&&postal.long_name==='750'+('0'+number).slice(-2))&&!district)return false;
+      }
+      var evidence=[result.formatted_address||''].concat(components.map(function(c){return (c.long_name||'')+' '+(c.short_name||'');})).join(' ');
+      if(place.match_phrase&&compact(evidence).indexOf(compact(place.match_phrase))<0)return false;
+      if(place.match_phrase)return true;
+      var address=norm(evidence);
+      return place.match_tokens.every(function(token){return address.indexOf(norm(token))>=0;});
     });
-    if(matches.length!==1) {if(place.approximate_parent){var parent=fbImportGeocode_(place.approximate_parent,country);if(parent.verified)parent.formatted_address+=' | '+place.approximate_parent.note;return parent;}return {verified:false,reason:'AMBIGUOUS_OR_PARTIAL'};}
-    var result=matches[0], point=result.geometry.location;
-    return {verified:true,lat:point.lat,lng:point.lng,country:country,
-      precision:place.precision,formatted_address:result.formatted_address};
-  } catch(error) { return {verified:false,reason:'GEOCODER_ERROR'}; }
+    if(matches.length!==1){
+      if(place.approximate_parent){var parent=fbImportGeocode_(place.approximate_parent,country);if(parent.verified)parent.formatted_address+=' | '+place.approximate_parent.note;return parent;}
+      // Publication-only fallback: a validated parent commune, explicitly less precise than the requested quarter.
+      if(place.allow_parent_fallback&&matches.length===0&&(data.results||[]).length===1){
+        var candidate=data.results[0],parts=candidate.address_components||[];
+        var local=parts.find(function(c){return (c.types||[]).indexOf('locality')>=0;});
+        var ctry=parts.find(function(c){return (c.types||[]).indexOf('country')>=0;});
+        var parentArea=parts.find(function(c){return (c.types||[]).indexOf('sublocality_level_1')>=0;});
+        if(local&&ctry&&parentArea&&allowed.indexOf(ctry.short_name)>=0&&norm(local.long_name)===norm(place.city)&&compact(parentArea.long_name)!==compact(place.match_phrase)){
+          var parentPlace={query:parentArea.long_name+', '+local.long_name+', '+ctry.long_name,match_tokens:[parentArea.long_name,local.long_name],precision:'commune_approx'};
+          var parentGeo=fbImportGeocode_(parentPlace,ctry.short_name);
+          if(parentGeo.verified){parentGeo.formatted_address+=' | Centre de '+parentArea.long_name+' uniquement ; quartier '+place.neighborhood+' non localisé précisément.';return parentGeo;}
+          return {verified:false,reason:parentGeo.reason||'PARENT_UNRESOLVED'};
+        }
+      }
+      return {verified:false,reason:'AMBIGUOUS_OR_PARTIAL'};
+    }
+    var result=matches[0],point=result.geometry.location,actualCountry=result.address_components.find(function(c){return (c.types||[]).indexOf('country')>=0;}).short_name;
+    return {verified:true,lat:point.lat,lng:point.lng,country:actualCountry,precision:place.precision,formatted_address:result.formatted_address};
+  }catch(error){return {verified:false,reason:'GEOCODER_ERROR'};}
 }
 
 function fbImportTable_(book, name, headers) {
